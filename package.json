@@ -1,0 +1,13 @@
+{
+  "name": "nors-bot-lig",
+  "version": "1.0.0",
+  "description": "Nors Bot Gelişmiş Futbol Lig Sistemi",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "discord.js": "^14.14.1",
+    "dotenv": "^16.4.5"
+  }
+}
