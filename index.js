@@ -1,45 +1,88 @@
-const { Client, GatewayIntentBits, PermissionsBitField, ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder } = require('discord.js');
+const { Client, GatewayIntentBits, EmbedBuilder } = require('discord.js');
 require('dotenv').config();
 
 const client = new Client({
-    intents: [
-        GatewayIntentBits.Guilds, 
-        GatewayIntentBits.GuildMessages, 
-        GatewayIntentBits.MessageContent, 
-        GatewayIntentBits.GuildMembers
-    ]
+    intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent, GatewayIntentBits.GuildMembers]
 });
 
-// ==========================================
-// GÜNCEL SUNUCU AYARLARI VE YETKİLİ ROLLERİ
-// ==========================================
-const KAYIT_YETKILI_ROL = '1520001240203919420'; 
-const ROL_FUTBOLCU = '1519399605677068450'; 
-
-// Yeni İstenen Yetkili Rolleri
 const LIG_YONETICI_ROL = '1519414839561158828';
 const OWNER_ROL = '1520770167720771644';
 const TEKNIK_DIREKTOR_ROL = '1520770097558585344';
-const TAKIM_BASKAN_ROL = '1520770097558585344'; // Belirttiğin ID'ye göre başkan rolü
+const TAKIM_BASKAN_ROL = '1520770097558585344';
 
-const KAYIT_ODASI_ID = '1519029435750416604'; 
-const KAYIT_DUYURU_KANAL_ID = '1519371653669322792'; 
+let takimlar = {};
 
-// Hafıza Veritabanları
-let oyuncuVerileri = {}; 
-let cooldownlar = new Map();
-let takimlar = {}; // Takım verilerinin tutulduğu alan
+client.on('messageCreate', async (message) => {
+    if (message.author.bot || !message.guild) return;
 
-// Sayı Formatlama (Cüzdan gösterimi için)
-function sayiFormatla(sayi) {
-    if (isNaN(sayi)) return "0";
-    if (sayi >= 1000000000) return (sayi / 1000000000).toFixed(1) + "B";
-    if (sayi >= 1000000) return (sayi / 1000000).toFixed(1) + "M";
-    if (sayi >= 1000) return (sayi / 1000).toFixed(1) + "K";
-    return sayi.toString();
-}
+    const icerik = message.content.trim();
+    const icerikKucuk = icerik.toLowerCase();
+    const argumanlar = icerik.split(/\s+/);
 
-client.once('ready', () => {
-    console.log(`⚽ Nors Bot Gelişmiş Lig Sistemiyle Aktif, Kanka!`
-);
+    // --yardim Komutu
+    if (icerikKucuk === '--yardim') {
+        const yardimEmbed = new EmbedBuilder()
+            .setTitle('⚽ Lig Sistemi - Komut Listesi')
+            .setColor(0x00FFFF)
+            .setDescription('**Yönetici Komutları:**\n`.takimkur başkan kim @kullanıcı takımı adı Real Madrid`\n`.takimsil Takım Adı`\n\n**Kadro Komutları:**\n`.oyuncual @kullanıcı ilk 11/yedek mevkisi Forvet Takım Adı`\n`.oyuncucikar @kullanıcı Takım Adı`\n`.kadro Takım Adı`\n\n**Genel:**\n`.takimliste`');
+        return message.reply({ embeds: [yardimEmbed] });
+    }
+
+    if (icerikKucuk.startsWith('.takimkur')) {
+        if (!message.member.roles.cache.has(LIG_YONETICI_ROL)) return message.reply('❌ Yetkin yok kanka!');
+        const baskan = message.mentions.members.first();
+        const takimAdi = argumanlar.slice(4).join(' ');
+        if (!baskan || !takimAdi) return message.reply('❌ Kullanım: `.takimkur başkan kim @kullanıcı takımı adı Real Madrid`');
+        takimlar[takimAdi.toLowerCase()] = { isim: takimAdi, baskanId: baskan.id, ilk11: [], yedekler: [] };
+        return message.reply(`✅ **${takimAdi}** kuruldu! Başkan: <@${baskan.id}>`);
+    }
+
+    if (icerikKucuk.startsWith('.takimsil')) {
+        if (!message.member.roles.cache.has(LIG_YONETICI_ROL)) return message.reply('❌ Yetkin yok kanka!');
+        const takimAdi = argumanlar.slice(1).join(' ');
+        if (!takimlar[takimAdi.toLowerCase()]) return message.reply('❌ Takım bulunamadı.');
+        delete takimlar[takimAdi.toLowerCase()];
+        return message.reply(`🗑️ **${takimAdi}** silindi.`);
+    }
+
+    if (icerikKucuk === '.takimliste') {
+        const tList = Object.values(takimlar);
+        if (tList.length === 0) return message.reply('📭 Takım yok.');
+        let aciklama = tList.map((t, i) => `**${i+1}.** ${t.isim} | Başkan: <@${t.baskanId}>`).join('\n');
+        return message.reply({ embeds: [new EmbedBuilder().setTitle('🏆 Takımlar').setDescription(aciklama)] });
+    }
+
+    if (icerikKucuk.startsWith('.oyuncual')) {
+        const yetkiliMi = message.member.roles.cache.has(OWNER_ROL) || message.member.roles.cache.has(TEKNIK_DIREKTOR_ROL) || message.member.roles.cache.has(TAKIM_BASKAN_ROL);
+        if (!yetkiliMi) return message.reply('❌ Yetkin yok!');
+        const hedefOyuncu = message.mentions.members.first();
+        const mevkiIndex = argumanlar.findIndex(a => a.toLowerCase() === 'mevkisi');
+        const takimAdi = argumanlar.slice(mevkiIndex + 2).join(' ');
+        const tVeri = takimlar[takimAdi.toLowerCase()];
+        if (!tVeri) return message.reply('❌ Takım bulunamadı.');
+        const kadroTipi = icerikKucuk.includes('ilk 11') ? 'ilk11' : 'yedek';
+        tVeri[kadroTipi].push({ id: hedefOyuncu.id, mevki: argumanlar[mevkiIndex + 1] });
+        return message.reply(`✅ Eklendi: <@${hedefOyuncu.id}>`);
+    }
+
+    if (icerikKucuk.startsWith('.oyuncucikar')) {
+        const hedefOyuncu = message.mentions.members.first();
+        const takimAdi = argumanlar.slice(2).join(' ');
+        const tVeri = takimlar[takimAdi.toLowerCase()];
+        if (!tVeri) return message.reply('❌ Takım bulunamadı.');
+        tVeri.ilk11 = tVeri.ilk11.filter(o => o.id !== hedefOyuncu.id);
+        tVeri.yedekler = tVeri.yedekler.filter(o => o.id !==毀hedefOyuncu.id);
+        return message.reply('✅ Oyuncu çıkarıldı.');
+    }
+
+    if (icerikKucuk.startsWith('.kadro')) {
+        const takimAdi = argumanlar.slice(1).join(' ');
+        const tVeri = takimlar[takimAdi.toLowerCase()];
+        if (!tVeri) return message.reply('❌ Takım bulunamadı.');
+        let ilk11 = tVeri.ilk11.map((o, i) => `**${i+1}.** <@${o.id}> [${o.mevki}]`).join('\n');
+        let yedek = tVeri.yedekler.map((o, i) => `**${i+1}.** <@${o.id}> [${o.mevki}]`).join('\n');
+        return message.reply({ embeds: [new EmbedBuilder().setTitle(tVeri.isim).addFields({name:'🟢 İlk 11', value: ilk11 || 'Yok'}, {name:'🔵 Yedek', value: yedek || 'Yok'})] });
+    }
 });
+
+client.login(process.env.TOKEN);
