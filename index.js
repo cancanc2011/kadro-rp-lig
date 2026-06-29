@@ -24,27 +24,31 @@ client.on('messageCreate', async (message) => {
         const yardimEmbed = new EmbedBuilder()
             .setTitle('⚽ Lig Sistemi - Komut Listesi')
             .setColor(0x00FFFF)
-            .setDescription('**Yönetici Komutları:**\n`.takimkur başkan kim @kullanıcı takımı adı Real Madrid`\n`.takimsil Takım Adı`\n\n**Kadro Komutları:**\n`.oyuncual @kullanıcı ilk 11/yedek mevkisi Forvet Takım Adı`\n`.oyuncucikar @kullanıcı Takım Adı`\n`.kadro Takım Adı`\n\n**Genel:**\n`.takimliste`');
+            .setDescription('**Yönetici:**\n`.takimkur @kullanıcı Takım Adı`\n`.takimsil Takım Adı`\n\n**Kadro:**\n`.oyuncual @kullanıcı ilk 11/yedek mevkisi Forvet Takım Adı`\n`.oyuncucikar @kullanıcı Takım Adı`\n`.kadro Takım Adı`\n\n**Genel:**\n`.takimliste`');
         return message.reply({ embeds: [yardimEmbed] });
     }
 
+    // .takimkur Komutu
     if (icerikKucuk.startsWith('.takimkur')) {
         if (!message.member.roles.cache.has(LIG_YONETICI_ROL)) return message.reply('❌ Yetkin yok kanka!');
         const baskan = message.mentions.members.first();
-        const takimAdi = argumanlar.slice(4).join(' ');
-        if (!baskan || !takimAdi) return message.reply('❌ Kullanım: `.takimkur başkan kim @kullanıcı takımı adı Real Madrid`');
+        const takimAdi = argumanlar.slice(2).join(' '); 
+        if (!baskan || !takimAdi) return message.reply('❌ Kullanım: `.takimkur @kullanıcı Takım Adı`');
         takimlar[takimAdi.toLowerCase()] = { isim: takimAdi, baskanId: baskan.id, ilk11: [], yedekler: [] };
         return message.reply(`✅ **${takimAdi}** kuruldu! Başkan: <@${baskan.id}>`);
     }
 
+    // .takimsil Komutu
     if (icerikKucuk.startsWith('.takimsil')) {
         if (!message.member.roles.cache.has(LIG_YONETICI_ROL)) return message.reply('❌ Yetkin yok kanka!');
-        const takimAdi = argumanlar.slice(1).join(' ');
-        if (!takimlar[takimAdi.toLowerCase()]) return message.reply('❌ Takım bulunamadı.');
+        const takimAdi = icerik.substring(9).trim(); 
+        if (!takimAdi) return message.reply('❌ Kullanım: `.takimsil Takım Adı`');
+        if (!takimlar[takimAdi.toLowerCase()]) return message.reply(`❌ **${takimAdi}** bulunamadı.`);
         delete takimlar[takimAdi.toLowerCase()];
         return message.reply(`🗑️ **${takimAdi}** silindi.`);
     }
 
+    // .takimliste Komutu
     if (icerikKucuk === '.takimliste') {
         const tList = Object.values(takimlar);
         if (tList.length === 0) return message.reply('📭 Takım yok.');
@@ -52,6 +56,7 @@ client.on('messageCreate', async (message) => {
         return message.reply({ embeds: [new EmbedBuilder().setTitle('🏆 Takımlar').setDescription(aciklama)] });
     }
 
+    // .oyuncual Komutu
     if (icerikKucuk.startsWith('.oyuncual')) {
         const yetkiliMi = message.member.roles.cache.has(OWNER_ROL) || message.member.roles.cache.has(TEKNIK_DIREKTOR_ROL) || message.member.roles.cache.has(TAKIM_BASKAN_ROL);
         if (!yetkiliMi) return message.reply('❌ Yetkin yok!');
@@ -65,16 +70,18 @@ client.on('messageCreate', async (message) => {
         return message.reply(`✅ Eklendi: <@${hedefOyuncu.id}>`);
     }
 
+    // .oyuncucikar Komutu
     if (icerikKucuk.startsWith('.oyuncucikar')) {
         const hedefOyuncu = message.mentions.members.first();
         const takimAdi = argumanlar.slice(2).join(' ');
         const tVeri = takimlar[takimAdi.toLowerCase()];
         if (!tVeri) return message.reply('❌ Takım bulunamadı.');
         tVeri.ilk11 = tVeri.ilk11.filter(o => o.id !== hedefOyuncu.id);
-        tVeri.yedekler = tVeri.yedekler.filter(o => o.id !==毀hedefOyuncu.id);
+        tVeri.yedekler = tVeri.yedekler.filter(o => o.id !== hedefOyuncu.id);
         return message.reply('✅ Oyuncu çıkarıldı.');
     }
 
+    // .kadro Komutu
     if (icerikKucuk.startsWith('.kadro')) {
         const takimAdi = argumanlar.slice(1).join(' ');
         const tVeri = takimlar[takimAdi.toLowerCase()];
