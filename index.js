@@ -84,5 +84,4 @@ client.on('guildMemberRemove', (member) => {
     }
 });
 
-// Botunun Tokenini buraya yapıştıracaksın (Railway veya Replit kullanıyorsan .env içine koymalısın)
-client.login('BOT_TOKENİNİ_BURAYA_YAZ');
+client.login(process.env.TOKEN);
