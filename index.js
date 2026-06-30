@@ -11,7 +11,7 @@ const client = new Client({
 });
 
 client.once('ready', () => {
-    console.log(`⚽ Gelişmiş Arama Botu Sorunsuz Aktif Kanka!`);
+    console.log(`⚽ Gelişmiş Arama Botu %100 Hazır Kanka!`);
 });
 
 client.on('messageCreate', async (message) => {
@@ -28,8 +28,10 @@ client.on('messageCreate', async (message) => {
             return message.reply('❌ Lütfen aramak istediğin ismi, mevkiyi veya bayrağı yaz kanka! Örn: `.ara SNT`, `.ara 🇫🇷` veya `.ara Icardi`');
         }
 
-        // Sunucudaki tüm üyeleri cache zorlamasıyla çekiyoruz
-        const uyeler = await message.guild.members.fetch({ force: true });
+        // Verilen sunucu ID'sine göre tüm üyeleri eksiksiz ve zorlayarak çekiyoruz
+        const sunucu = client.guilds.cache.get('1511859511634301059') || message.guild;
+        const uyeler = await sunucu.members.fetch({ force: true });
+        
         let bulunanlar = [];
         const arananKucuk = arananKelime.toLowerCase();
 
@@ -57,7 +59,7 @@ client.on('messageCreate', async (message) => {
 
             // Gelişmiş Arama Filtresi (Eşleşme Kontrolü)
             if (
-                displayName.toLowerCase().includes(arananKucuk) || 
+                oyuncuAdi.toLowerCase().includes(arananKucuk) || 
                 uye.user.username.toLowerCase().includes(arananKucuk) ||
                 mevki.toLowerCase() === arananKucuk ||
                 (bayrak && bayrak.includes(arananKelime))
