@@ -11,7 +11,7 @@ const client = new Client({
 });
 
 client.once('ready', () => {
-    console.log(`⚽ Arama Botu Hazır Kanka!`);
+    console.log(`⚽ Gelişmiş Arama Botu Hazır Kanka!`);
 });
 
 client.on('messageCreate', async (message) => {
@@ -21,54 +21,101 @@ client.on('messageCreate', async (message) => {
         const icerik = message.content.trim();
         const icerikKucuk = icerik.toLowerCase();
 
-        // --- .ara OYUNCU ARAMA KOMUTU ---
+        // --- .ara GELİŞMİŞ ARAMA KOMUTU ---
         if (icerikKucuk.startsWith('.ara')) {
             const arananKelime = icerik.substring(4).trim();
-            if (!arananKelime) return message.reply('❌ Lütfen aramak istediğin oyuncunun ismini yaz kanka! Örn: `.ara C.Ronaldo`');
+            if (!arananKelime) return message.reply('❌ Lütfen aramak istediğin ismi, mevkiyi veya bayrağı yaz kanka! Örn: `.ara SNT`, `.ara 🇫🇷` veya `.ara Icardi`');
 
-            // Sunucudaki üyeleri çekip filtreliyoruz
+            // Sunucudaki tüm üyeleri çekiyoruz
             const uyeler = await message.guild.members.fetch();
-            const bulunanUye = uyeler.find(m => m.displayName.toLowerCase().includes(arananKelime.toLowerCase()) || m.user.username.toLowerCase().includes(arananKelime.toLowerCase()));
+            
+            // Aranan kelimeye uyan üyeleri toplayacağımız liste
+            let bulunanlar = [];
 
-            if (!bulunanUye) return message.reply('🔍 Aradığın kriterlere uygun bir oyuncu lisansı bulunamadı kanka.');
+            uyeler.forEach(uye => {
+                if (uye.user.bot) return; // Botları atla
 
-            const displayName = bulunanUye.displayName;
-            // İsim formatını parçalara ayırıyoruz: İsim | Mevki | 🇫🇷 | 100M tarzı yapılar için
-            const parcalar = displayName.split('|').map(p => p.trim());
+                const displayName = uye.displayName;
+                const parcalar = displayName.split('|').map(p => p.trim());
+                
+                // İsim formatı parçalama: İsim (0) | Mevki (1) | Bayrak (2) | Değer (3)
+                let oyuncuAdi = parcalar[0] || '';
+                let mevki = parcalar[1] || '';
+                let bayrak = parcalar[2] || '';
+                let piyasaDegeri = parcalar[3] || 'Belirtilmemiş';
 
-            let oyuncuAdi = parcalar[0] || bulunanUye.user.username;
-            let mevki = 'Belirtilmemiş';
-            let bayrak = '🏳️';
-            let piyasaDegeri = 'Belirtilmemiş';
+                // Eğer bayrak girilmeyip direkt değer yazıldıysa düzeltme yap
+                if (parcalar.length === 3 && (parcalar[2].includes('M') || parcalar[2].includes('K') || parcalar[2].includes('B') || parcalar[2].includes('€'))) {
+                    piyasaDegeri = parcalar[2];
+                    bayrak = '';
+                }
 
-            if (parcalar.length >= 2) mevki = parcalar[1];
-            if (parcalar.length >= 3) bayrak = parcalar[2];
-            if (parcalar.length >= 4) {
-                piyasaDegeri = parcalar[3];
-            } else if (parcalar.length === 3 && (parcalar[2].includes('M') || parcalar[2].includes('K') || parcalar[2].includes('B') || parcalar[2].includes('€'))) {
-                // Eğer bayrak girilmediyse ve 3. parça direkt değerse
-                piyasaDegeri = parcalar[2];
-                bayrak = '🏳️';
+                // Arama eşleşme kontrolü (İsimde, mevkide veya bayrakta geçiyor mu?)
+                if (
+                    oyuncuAdi.toLowerCase().includes(arananKelime.toLowerCase()) ||
+                    mevki.toLowerCase() === arananKelime.toLowerCase() ||
+                    (bayrak && bayrak.includes(arananKelime)) ||
+                    uye.user.username.toLowerCase().includes(arananKelime.toLowerCase())
+                ) {
+                    bulunanlar.push({
+                        mention: `<@${uye.id}>`,
+                        ad: oyuncuAdi,
+                        mevki: mevki || 'Belirtilmemiş',
+                        bayrak: bayrak || '🏳️',
+                        deger: piyasaDegeri
+                    });
+                }
+            });
+
+            if (bulunanlar.length === 0) {
+                return message.reply('🔍 Aradığın kritere uygun hiçbir oyuncu lisansı bulunamadı kanka.');
             }
 
-            const araEmbed = new EmbedBuilder()
-                .setTitle(`🪪 REALITY LEAGUE - OYUNCU LİSANS KART`)
-                .setThumbnail(bulunanUye.user.displayAvatarURL({ dynamic: true }))
-                .setColor(0x2F3136)
-                .setDescription(`⚽ **Kullanıcı Bilgisi:** <@${bulunanUye.id}>`)
-                .addFields(
-                    { name: '👤 Oyuncu Adı', value: `\`\`\`${oyuncuAdi}\`\`\``, inline: true },
-                    { name: '🏃‍♂️ Mevki / Pozisyon', value: `\`\`\`${mevki}\`\`\``, inline: true },
-                    { name: '🌍 Ülke / Uyruk', value: ` ${bayrak}`, inline: true },
-                    { name: '💰 Piyasa Değeri', value: `\`\`\`${piyasaDegeri}\`\`\``, inline: true }
-                )
-                .setFooter({ text: `Sorgulayan: ${message.author.username}`, iconURL: message.author.displayAvatarURL({ dynamic: true }) })
-                .setTimestamp();
+            // --- SENARYO 1: TEK BİR OYUNCU BULUNDUYSA (DETAYLI LİSANS KARTI) ---
+            if (bulunanlar.length === 1) {
+                const o = bulunanlar[0];
+                const hedefUye = uyeler.get(o.mention.replace(/[<@!>]/g, ''));
 
-            return message.reply({ embeds: [araEmbed] });
+                const tekEmbed = new EmbedBuilder()
+                    .setTitle(`🪪 REALITY LEAGUE - OYUNCU LİSANS KARTI`)
+                    .setThumbnail(hedefUye ? hedefUye.user.displayAvatarURL({ dynamic: true }) : null)
+                    .setColor(0x2F3136)
+                    .setDescription(`⚽ **Kullanıcı Bilgisi:** ${o.mention}`)
+                    .addFields(
+                        { name: '👤 Oyuncu Adı', value: `\`\`\`${o.ad}\`\`\``, inline: true },
+                        { name: '🏃‍♂️ Mevki / Pozisyon', value: `\`\`\`${o.mevki}\`\`\``, inline: true },
+                        { name: '🌍 Ülke / Uyruk', value: ` ${o.bayrak}`, inline: true },
+                        { name: '💰 Piyasa Değeri', value: `\`\`\`${o.deger}\`\`\``, inline: true }
+                    )
+                    .setFooter({ text: `Sorgulayan: ${message.author.username}`, iconURL: message.author.displayAvatarURL({ dynamic: true }) })
+                    .setTimestamp();
+
+                return message.reply({ embeds: [tekEmbed] });
+            }
+
+            // --- SENARYO 2: BİRDEN FAZLA OYUNCU BULUNDUYSA (MEVKİ VEYA BAYRAK LİSTELEME) ---
+            if (bulunanlar.length > 1) {
+                let listeMetni = '';
+                bulunanlar.forEach((o, index) => {
+                    listeMetni += `${index + 1}. ${o.mention} | **${o.ad}** | \`${o.mevki}\` | ${o.bayrak} | \`${o.deger}\`\n`;
+                });
+
+                // Discord 2000 karakter sınırını aşmamak için parça kontrolü
+                if (listeMetni.length > 3000) listeMetni = listeMetni.substring(0, 2900) + '\n...ve daha fazlası';
+
+                const listeEmbed = new EmbedBuilder()
+                    .setTitle(`🔍 ARAMA SONUÇLARI (${bulunanlar.length} Oyuncu Bulundu)`)
+                    .setDescription(`Sunucuda **"${arananKelime}"** kriterine uyan tüm lisanslar aşağıda listelenmiştir:\n\n${listeMetni}`)
+                    .setColor(0x00A2E8)
+                    .setFooter({ text: `Sorgulayan: ${message.author.username}`, iconURL: message.author.displayAvatarURL({ dynamic: true }) })
+                    .setTimestamp();
+
+                return message.reply({ embeds: [listeEmbed] });
+            }
         }
 
     } catch (err) { console.error(err); }
 });
 
-client.login(process.env.TOKEN);
+client.login
+    (process.env.TOKEN);
