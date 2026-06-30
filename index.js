@@ -111,6 +111,6 @@ client.on('messageCreate', async (message) => {
 });
 
 const CONFIG = {
-    token: MTUyMTIwMTE1MDIzNjQyNjMxMQ.Gw__A0.wK4s5otLXF_L_cexMaGeX1UTHOco9QaOR2xPtg,
+    token: "DISCORD_DAN_KOPYALADIGIN_UPUZUN_BOT_SIFRESINI_BURAYA_KOY",
     sunucuId: "1511859511634301059"
 };
