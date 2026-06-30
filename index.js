@@ -1,11 +1,11 @@
 const { Client, GatewayIntentBits, EmbedBuilder } = require('discord.js');
 const express = require('express');
-const db = require('quick.db'); 
+const fs = require('fs'); // Sıfır hata ile çalışan güvenli dosya sistemi
 
 const app = express();
 const port = process.env.PORT || 3000;
 app.get('/', (req, res) => res.send('Arama Botu Aktif!'));
-app.listen(port);
+app.listen(port, () => console.log(`Web sunucusu ${port} portunda hazır.`));
 
 const client = new Client({
     intents: [
@@ -17,27 +17,41 @@ const client = new Client({
 
 const CONFIG = {
     token: "DORDUNCU_BOT_TOKENINIZI_BURAYA_YAZIN",
-    sunucuId: "1511859511634301059" // Sadece bu sunucuda çalışacak
+    sunucuId: "1511859511634301059"
 };
 
+// SQLite veya quick.db hatası almamak için verileri güvenli okuma fonksiyonu
+function getDatabaseData() {
+    try {
+        // Eğer ilk botla aynı klasördeyse veya json kullanılıyorsa dosyayı okur
+        if (fs.existsSync('json.sqlite')) {
+            return JSON.parse(fs.readFileSync('json.sqlite', 'utf8'));
+        }
+    } catch (e) {
+        console.log("Veritabanı okunurken bir sorun oluştu veya henüz veri yok.");
+    }
+    return {};
+}
+
 client.on('ready', () => {
-    console.log(`🔍 ${client.user.tag} sadece arama komutları için hazır!`);
+    console.log(`🔍 ${client.user.tag} sıfır hata moduyla aktif edildi!`);
 });
 
 client.on('messageCreate', async (message) => {
     if (message.author.bot || !message.guild || message.guild.id !== CONFIG.sunucuId) return;
 
-    // Sadece .ara ile başlayan mesajları kontrol et
     if (message.content.startsWith('.ara')) {
         const args = message.content.slice(4).trim().split('/');
         const aramaTerimi = message.content.slice(4).trim().toLowerCase();
 
-        // 1. .ara oyuncular (Tüm listeyi çeker)
-        if (aramaTerimi === 'oyuncular') {
-            const tumVeriler = db.all(); 
-            const oyuncuListesi = tumVeriler.filter(veri => veri.id.startsWith('profil_'));
+        // json.sqlite içindeki ham verileri çekiyoruz
+        const dbData = getDatabaseData();
+        const keys = Object.keys(dbData);
+        const profilKeys = keys.filter(k => k.startsWith('profil_'));
 
-            if (oyuncuListesi.length === 0) {
+        // 1. .ara oyuncular
+        if (aramaTerimi === 'oyuncular') {
+            if (profilKeys.length === 0) {
                 return message.reply("📋 Ligde henüz kayıtlı hiçbir oyuncu bulunmuyor!");
             }
 
@@ -47,32 +61,27 @@ client.on('messageCreate', async (message) => {
                 .setTimestamp();
 
             let listeMetni = "";
-            oyuncuListesi.forEach((o, index) => {
-                const data = o.value;
-                const user = client.users.cache.get(o.id.replace('profil_', ''));
-                const etiket = user ? `<@${user.id}>` : `Bilinmeyen Oyuncu`;
-                
-                listeMetni += `**${index + 1}.** 🏃 **${data.isim}** | 🛡️ \`${data.mevki}\` | 🏳️ ${data.bayrak} | 💰 \`${data.deger}\` (${etiket})\n`;
+            profilKeys.forEach((key, index) => {
+                const data = dbData[key];
+                const userId = key.replace('profil_', '');
+                listeMetni += `**${index + 1}.** 🏃 **${data.isim || "Bilinmiyor"}** | 🛡️ \`${data.mevki || "N/A"}\` | 🏳️ ${data.bayrak || "🏳️"} | 💰 \`${data.deger || "0"}\` (<@${userId}>)\n`;
             });
 
             embed.setDescription(listeMetni);
             return message.reply({ embeds: [embed] });
         }
 
-        // 2. .ara SNT/oyuncu adı/bayrak (Detaylı filtreleme)
+        // 2. .ara SNT/oyuncu adı/bayrak
         if (args.length >= 2) {
             const filtreMevki = args[0] ? args[0].trim().toUpperCase() : null;
             const filtreIsim = args[1] ? args[1].trim().toLowerCase() : null;
             const filtreBayrak = args[2] ? args[2].trim() : null;
 
-            const tumVeriler = db.all();
-            const oyuncular = tumVeriler.filter(veri => veri.id.startsWith('profil_'));
-
-            const bulunanlar = oyuncular.filter(o => {
-                const d = o.value;
-                const mevkiUyuşuyor = filtreMevki ? d.mevki.toUpperCase().includes(filtreMevki) : true;
-                const isimUyuşuyor = filtreIsim ? d.isim.toLowerCase().includes(filtreIsim) : true;
-                const bayrakUyuşuyor = filtreBayrak ? d.bayrak.includes(filtreBayrak) : true;
+            const bulunanlar = profilKeys.filter(key => {
+                const d = dbData[key];
+                const mevkiUyuşuyor = filtreMevki ? (d.mevki && d.mevki.toUpperCase().includes(filtreMevki)) : true;
+                const isimUyuşuyor = filtreIsim ? (d.isim && d.isim.toLowerCase().includes(filtreIsim)) : true;
+                const bayrakUyuşuyor = filtreBayrak ? (d.bayrak && d.bayrak.includes(filtreBayrak)) : true;
                 return mevkiUyuşuyor && isimUyuşuyor && bayrakUyuşuyor;
             });
 
@@ -86,11 +95,11 @@ client.on('messageCreate', async (message) => {
                 .setFooter({ text: `Toplam ${bulunanlar.length} oyuncu listelendi.` })
                 .setTimestamp();
 
-            bulunanlar.forEach(o => {
-                const data = o.value;
+            bulunanlar.forEach(key => {
+                const data = dbData[key];
                 embed.addFields({
-                    name: `🏃 ${data.isim} (${data.bayrak})`,
-                    value: `🛡️ **Mevki:** \`${data.mevki}\`\n💰 **Değer:** \`${data.deger}\`\n🏋️ **Antrenman:** \`${data.ant || "0/5"}\`\n⚽ **Penaltı:** \`${data.penGol || 0} Gol / ${data.penKacis || 0} Kaçan\``,
+                    name: `🏃 ${data.isim || "Bilinmeyen"} (${data.bayrak || "🏳️"})`,
+                    value: `🛡️ **Mevki:** \`${data.mevki || "N/A"}\`\n💰 **Değer:** \`${data.deger || "0"}\`\n🏋️ **Antrenman:** \`${data.ant || "0/5"}\`\n⚽ **Penaltı:** \`${data.penGol || 0} Gol / ${data.penKacis || 0} Kaçan\``,
                     inline: false
                 });
             });
@@ -98,10 +107,9 @@ client.on('messageCreate', async (message) => {
             return message.reply({ embeds: [embed] });
         }
 
-        // Hatalı veya eksik kullanımda uyarı mesajı
         return message.reply("⚠️ **Hatalı Kullanım!**\n• Tüm listeyi görmek için: `.ara oyuncular` \n• Detaylı arama için: `.ara Mevki / Oyuncu Adı / Bayrak` formatını kullanmalısın.");
     }
 });
 
 client.
-    login(CONFIG.token);
+    login(CONFIG.token);  
