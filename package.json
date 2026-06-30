@@ -1,13 +1,13 @@
 {
-  "name": "nors-bot-lig",
+  "name": "lig-arama-botu",
   "version": "1.0.0",
-  "description": "Nors Bot Gelişmiş Futbol Lig Sistemi",
-  "main": "index.js",
+  "description": "Railway hızlı kurulum arama botu",
+  "main": "İndex.js",
   "scripts": {
-    "start": "node index.js"
+    "start": "node İndex.js"
   },
   "dependencies": {
-    "discord.js": "^14.14.1",
-    "dotenv": "^16.4.5"
+    "discord.js": "^14.15.3",
+    "express": "^4.19.2"
   }
 }
