@@ -6,7 +6,7 @@ const client = new Client({
         GatewayIntentBits.Guilds, 
         GatewayIntentBits.GuildMessages, 
         GatewayIntentBits.MessageContent, 
-        GatewayIntentBits.GuildMembers // Üyeleri taramak için bu şart!
+        GatewayIntentBits.GuildMembers
     ]
 });
 
@@ -19,14 +19,16 @@ client.on('messageCreate', async (message) => {
         if (message.author.bot || !message.guild) return;
 
         const icerik = message.content.trim();
-        if (!iceriK.toLowerCase().startsWith('.ara')) return;
+        
+        // Sadece .ara ile başlayan mesajları gör, diğer mesajları direkt engelle!
+        if (!icerik.toLowerCase().startsWith('.ara')) return;
 
         const arananKelime = icerik.substring(4).trim();
         if (!arananKelime) {
             return message.reply('❌ Lütfen aramak istediğin ismi, mevkiyi veya bayrağı yaz kanka! Örn: `.ara SNT`, `.ara 🇫🇷` veya `.ara Icardi`');
         }
 
-        // Sunucudaki tüm üyeleri anlık olarak zorlayarak çekiyoruz
+        // Sunucudaki üyeleri zorlayarak çekiyoruz
         const uyeler = await message.guild.members.fetch({ force: true });
         let bulunanlar = [];
 
@@ -46,13 +48,12 @@ client.on('messageCreate', async (message) => {
                 bayrak = '';
             }
 
-            // Küçük-büyük harf duyarlılığını ortadan kaldırıp tam eşleşme arıyoruz
             const arananKucuk = arananKelime.toLowerCase();
             
             if (
                 oyuncuAdi.toLowerCase().includes(arananKucuk) ||
                 mevki.toLowerCase() === arananKucuk ||
-                (bayrak && bayrak.includes(arananKelime)) || // Bayraklar emoji olduğu için direkt aratıyoruz
+                (bayrak && bayrak.includes(arananKelime)) || 
                 uye.user.username.toLowerCase().includes(arananKucuk)
             ) {
                 bulunanlar.push({
@@ -91,7 +92,7 @@ client.on('messageCreate', async (message) => {
             return message.reply({ embeds: [tekEmbed] });
         }
 
-        // --- DURUM 2: BİRDEN FAZLA OYUNCU BULUNDUYSA (.ara SNT veya .ara 🇫🇷) ---
+        // --- DURUM 2: BİRDEN FAZLA OYUNCU BULUNDUYSA ---
         if (bulunanlar.length > 1) {
             let listeMetni = '';
             bulunanlar.forEach((o, index) => {
@@ -112,8 +113,8 @@ client.on('messageCreate', async (message) => {
 
     } catch (err) { 
         console.error(err); 
-        message.reply('❌ Komut çalışırken bir hata oluştu kanka, logları kontrol et.');
     }
 });
 
-client.login(process.env.TOKEN);
+client.login(
+    process.env.TOKEN);
