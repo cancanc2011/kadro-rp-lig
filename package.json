@@ -2,9 +2,10 @@
   "name": "lig-arama-botu",
   "version": "1.0.0",
   "description": "Railway hızlı kurulum arama botu",
-  "main": "İndex.js",
-  "scripts": {
-    "start": "node İndex.js"
+"main": "İndex.js",
+"scripts": 
+  "start": "node İndex.js"
+
   },
   "dependencies": {
     "discord.js": "^14.15.3",
