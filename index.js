@@ -61,5 +61,4 @@ client.on('guildMemberRemove', (member) => {
     }
 });
 
-client.login(process.env.TOKEN); // Railway Değişkenlerindeki
-TOKEN'i okur
+client.login("BURAYA_DİSKORD_BOT_TOKENİNİ_YAZ");
