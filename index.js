@@ -1,95 +1,107 @@
 const { Client, GatewayIntentBits, EmbedBuilder } = require('discord.js');
-require('dotenv').config();
+const express = require('express');
+const db = require('quick.db'); 
+
+const app = express();
+const port = process.env.PORT || 3000;
+app.get('/', (req, res) => res.send('Arama Botu Aktif!'));
+app.listen(port);
 
 const client = new Client({
-    intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent, GatewayIntentBits.GuildMembers]
+    intents: [
+        GatewayIntentBits.Guilds,
+        GatewayIntentBits.GuildMessages,
+        GatewayIntentBits.MessageContent
+    ]
 });
 
-const LIG_YONETICI_ROL = '1519414839561158828';
-const OWNER_ROL = '1520770167720771644';
-const TEKNIK_DIREKTOR_ROL = '1520770097558585344';
-const TAKIM_BASKAN_ROL = '1520770097558585344';
+const CONFIG = {
+    token: "DORDUNCU_BOT_TOKENINIZI_BURAYA_YAZIN",
+    sunucuId: "1511859511634301059" // Sadece bu sunucuda çalışacak
+};
 
-let takimlar = {};
+client.on('ready', () => {
+    console.log(`🔍 ${client.user.tag} sadece arama komutları için hazır!`);
+});
 
 client.on('messageCreate', async (message) => {
-    if (message.author.bot || !message.guild) return;
+    if (message.author.bot || !message.guild || message.guild.id !== CONFIG.sunucuId) return;
 
-    const icerik = message.content.trim();
-    const icerikKucuk = icerik.toLowerCase();
-    const argumanlar = icerik.split(/\s+/);
+    // Sadece .ara ile başlayan mesajları kontrol et
+    if (message.content.startsWith('.ara')) {
+        const args = message.content.slice(4).trim().split('/');
+        const aramaTerimi = message.content.slice(4).trim().toLowerCase();
 
-    // --yardim Komutu
-    if (icerikKucuk === '--yardim') {
-        const yardimEmbed = new EmbedBuilder()
-            .setTitle('⚽ Lig Sistemi - Komut Listesi')
-            .setColor(0x00FFFF)
-            .setDescription('**Yönetici:**\n`.takimkur @kullanıcı Takım Adı`\n`.takimsil Takım Adı`\n\n**Kadro:**\n`.oyuncual @kullanıcı ilk 11/yedek mevkisi Forvet Takım Adı`\n`.oyuncucikar @kullanıcı Takım Adı`\n`.kadro Takım Adı`\n\n**Genel:**\n`.takimliste`');
-        return message.reply({ embeds: [yardimEmbed] });
-    }
+        // 1. .ara oyuncular (Tüm listeyi çeker)
+        if (aramaTerimi === 'oyuncular') {
+            const tumVeriler = db.all(); 
+            const oyuncuListesi = tumVeriler.filter(veri => veri.id.startsWith('profil_'));
 
-    // .takimkur Komutu
-    if (icerikKucuk.startsWith('.takimkur')) {
-        if (!message.member.roles.cache.has(LIG_YONETICI_ROL)) return message.reply('❌ Yetkin yok kanka!');
-        const baskan = message.mentions.members.first();
-        const takimAdi = argumanlar.slice(2).join(' '); 
-        if (!baskan || !takimAdi) return message.reply('❌ Kullanım: `.takimkur @kullanıcı Takım Adı`');
-        takimlar[takimAdi.toLowerCase()] = { isim: takimAdi, baskanId: baskan.id, ilk11: [], yedekler: [] };
-        return message.reply(`✅ **${takimAdi}** kuruldu! Başkan: <@${baskan.id}>`);
-    }
+            if (oyuncuListesi.length === 0) {
+                return message.reply("📋 Ligde henüz kayıtlı hiçbir oyuncu bulunmuyor!");
+            }
 
-    // .takimsil Komutu
-    if (icerikKucuk.startsWith('.takimsil')) {
-        if (!message.member.roles.cache.has(LIG_YONETICI_ROL)) return message.reply('❌ Yetkin yok kanka!');
-        const takimAdi = icerik.substring(9).trim(); 
-        if (!takimAdi) return message.reply('❌ Kullanım: `.takimsil Takım Adı`');
-        if (!takimlar[takimAdi.toLowerCase()]) return message.reply(`❌ **${takimAdi}** bulunamadı.`);
-        delete takimlar[takimAdi.toLowerCase()];
-        return message.reply(`🗑️ **${takimAdi}** silindi.`);
-    }
+            const embed = new EmbedBuilder()
+                .setTitle("📋 LİGDEKİ TÜM AKTİF OYUNCULARIN LİSTESİ")
+                .setColor("Blurple")
+                .setTimestamp();
 
-    // .takimliste Komutu
-    if (icerikKucuk === '.takimliste') {
-        const tList = Object.values(takimlar);
-        if (tList.length === 0) return message.reply('📭 Takım yok.');
-        let aciklama = tList.map((t, i) => `**${i+1}.** ${t.isim} | Başkan: <@${t.baskanId}>`).join('\n');
-        return message.reply({ embeds: [new EmbedBuilder().setTitle('🏆 Takımlar').setDescription(aciklama)] });
-    }
+            let listeMetni = "";
+            oyuncuListesi.forEach((o, index) => {
+                const data = o.value;
+                const user = client.users.cache.get(o.id.replace('profil_', ''));
+                const etiket = user ? `<@${user.id}>` : `Bilinmeyen Oyuncu`;
+                
+                listeMetni += `**${index + 1}.** 🏃 **${data.isim}** | 🛡️ \`${data.mevki}\` | 🏳️ ${data.bayrak} | 💰 \`${data.deger}\` (${etiket})\n`;
+            });
 
-    // .oyuncual Komutu
-    if (icerikKucuk.startsWith('.oyuncual')) {
-        const yetkiliMi = message.member.roles.cache.has(OWNER_ROL) || message.member.roles.cache.has(TEKNIK_DIREKTOR_ROL) || message.member.roles.cache.has(TAKIM_BASKAN_ROL);
-        if (!yetkiliMi) return message.reply('❌ Yetkin yok!');
-        const hedefOyuncu = message.mentions.members.first();
-        const mevkiIndex = argumanlar.findIndex(a => a.toLowerCase() === 'mevkisi');
-        const takimAdi = argumanlar.slice(mevkiIndex + 2).join(' ');
-        const tVeri = takimlar[takimAdi.toLowerCase()];
-        if (!tVeri) return message.reply('❌ Takım bulunamadı.');
-        const kadroTipi = icerikKucuk.includes('ilk 11') ? 'ilk11' : 'yedek';
-        tVeri[kadroTipi].push({ id: hedefOyuncu.id, mevki: argumanlar[mevkiIndex + 1] });
-        return message.reply(`✅ Eklendi: <@${hedefOyuncu.id}>`);
-    }
+            embed.setDescription(listeMetni);
+            return message.reply({ embeds: [embed] });
+        }
 
-    // .oyuncucikar Komutu
-    if (icerikKucuk.startsWith('.oyuncucikar')) {
-        const hedefOyuncu = message.mentions.members.first();
-        const takimAdi = argumanlar.slice(2).join(' ');
-        const tVeri = takimlar[takimAdi.toLowerCase()];
-        if (!tVeri) return message.reply('❌ Takım bulunamadı.');
-        tVeri.ilk11 = tVeri.ilk11.filter(o => o.id !== hedefOyuncu.id);
-        tVeri.yedekler = tVeri.yedekler.filter(o => o.id !== hedefOyuncu.id);
-        return message.reply('✅ Oyuncu çıkarıldı.');
-    }
+        // 2. .ara SNT/oyuncu adı/bayrak (Detaylı filtreleme)
+        if (args.length >= 2) {
+            const filtreMevki = args[0] ? args[0].trim().toUpperCase() : null;
+            const filtreIsim = args[1] ? args[1].trim().toLowerCase() : null;
+            const filtreBayrak = args[2] ? args[2].trim() : null;
 
-    // .kadro Komutu
-    if (icerikKucuk.startsWith('.kadro')) {
-        const takimAdi = argumanlar.slice(1).join(' ');
-        const tVeri = takimlar[takimAdi.toLowerCase()];
-        if (!tVeri) return message.reply('❌ Takım bulunamadı.');
-        let ilk11 = tVeri.ilk11.map((o, i) => `**${i+1}.** <@${o.id}> [${o.mevki}]`).join('\n');
-        let yedek = tVeri.yedekler.map((o, i) => `**${i+1}.** <@${o.id}> [${o.mevki}]`).join('\n');
-        return message.reply({ embeds: [new EmbedBuilder().setTitle(tVeri.isim).addFields({name:'🟢 İlk 11', value: ilk11 || 'Yok'}, {name:'🔵 Yedek', value: yedek || 'Yok'})] });
+            const tumVeriler = db.all();
+            const oyuncular = tumVeriler.filter(veri => veri.id.startsWith('profil_'));
+
+            const bulunanlar = oyuncular.filter(o => {
+                const d = o.value;
+                const mevkiUyuşuyor = filtreMevki ? d.mevki.toUpperCase().includes(filtreMevki) : true;
+                const isimUyuşuyor = filtreIsim ? d.isim.toLowerCase().includes(filtreIsim) : true;
+                const bayrakUyuşuyor = filtreBayrak ? d.bayrak.includes(filtreBayrak) : true;
+                return mevkiUyuşuyor && isimUyuşuyor && bayrakUyuşuyor;
+            });
+
+            if (bulunanlar.length === 0) {
+                return message.reply("🔍 Aradığın kriterlere uygun bir oyuncu bulunamadı!");
+            }
+
+            const embed = new EmbedBuilder()
+                .setTitle("🔍 Detaylı Oyuncu Arama Sonuçları")
+                .setColor("Gold")
+                .setFooter({ text: `Toplam ${bulunanlar.length} oyuncu listelendi.` })
+                .setTimestamp();
+
+            bulunanlar.forEach(o => {
+                const data = o.value;
+                embed.addFields({
+                    name: `🏃 ${data.isim} (${data.bayrak})`,
+                    value: `🛡️ **Mevki:** \`${data.mevki}\`\n💰 **Değer:** \`${data.deger}\`\n🏋️ **Antrenman:** \`${data.ant || "0/5"}\`\n⚽ **Penaltı:** \`${data.penGol || 0} Gol / ${data.penKacis || 0} Kaçan\``,
+                    inline: false
+                });
+            });
+
+            return message.reply({ embeds: [embed] });
+        }
+
+        // Hatalı veya eksik kullanımda uyarı mesajı
+        return message.reply("⚠️ **Hatalı Kullanım!**\n• Tüm listeyi görmek için: `.ara oyuncular` \n• Detaylı arama için: `.ara Mevki / Oyuncu Adı / Bayrak` formatını kullanmalısın.");
     }
 });
 
-client.login(process.env.TOKEN);
+client.
+    login(CONFIG.token);
