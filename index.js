@@ -11,7 +11,7 @@ const client = new Client({
 });
 
 client.once('ready', () => {
-    console.log(`⚽ Gelişmiş Arama Botu Aktif Kanka!`);
+    console.log(`⚽ Gelişmiş Arama Botu Sorunsuz Aktif Kanka!`);
 });
 
 client.on('messageCreate', async (message) => {
@@ -20,7 +20,7 @@ client.on('messageCreate', async (message) => {
 
         const icerik = message.content.trim();
         
-        // Sadece .ara ile başlayan mesajları gör, diğer mesajları direkt engelle!
+        // Sadece .ara ile başlayan komutları kontrol et
         if (!icerik.toLowerCase().startsWith('.ara')) return;
 
         const arananKelime = icerik.substring(4).trim();
@@ -28,9 +28,10 @@ client.on('messageCreate', async (message) => {
             return message.reply('❌ Lütfen aramak istediğin ismi, mevkiyi veya bayrağı yaz kanka! Örn: `.ara SNT`, `.ara 🇫🇷` veya `.ara Icardi`');
         }
 
-        // Sunucudaki üyeleri zorlayarak çekiyoruz
+        // Sunucudaki tüm üyeleri cache zorlamasıyla çekiyoruz
         const uyeler = await message.guild.members.fetch({ force: true });
         let bulunanlar = [];
+        const arananKucuk = arananKelime.toLowerCase();
 
         uyeler.forEach(uye => {
             if (uye.user.bot) return;
@@ -38,36 +39,42 @@ client.on('messageCreate', async (message) => {
             const displayName = uye.displayName;
             const parcalar = displayName.split('|').map(p => p.trim());
             
-            let oyuncuAdi = parcalar[0] || '';
-            let mevki = parcalar[1] || '';
-            let bayrak = parcalar[2] || '';
-            let piyasaDegeri = parcalar[3] || 'Belirtilmemiş';
+            // Temel değişkenleri tanımlıyoruz
+            let oyuncuAdi = parcalar[0] || uye.user.username;
+            let mevki = 'Belirtilmemiş';
+            let bayrak = '🏳️';
+            let piyasaDegeri = 'Belirtilmemiş';
 
-            if (parcalar.length === 3 && (parcalar[2].includes('M') || parcalar[2].includes('K') || parcalar[2].includes('B') || parcalar[2].includes('€'))) {
+            // Parçalama kontrolü
+            if (parcalar.length >= 2) mevki = parcalar[1];
+            if (parcalar.length >= 3) bayrak = parcalar[2];
+            if (parcalar.length >= 4) {
+                piyasaDegeri = parcalar[3];
+            } else if (parcalar.length === 3 && (parcalar[2].includes('M') || parcalar[2].includes('K') || parcalar[2].includes('B') || parcalar[2].includes('€'))) {
                 piyasaDegeri = parcalar[2];
-                bayrak = '';
+                bayrak = '🏳️';
             }
 
-            const arananKucuk = arananKelime.toLowerCase();
-            
+            // Gelişmiş Arama Filtresi (Eşleşme Kontrolü)
             if (
-                oyuncuAdi.toLowerCase().includes(arananKucuk) ||
+                displayName.toLowerCase().includes(arananKucuk) || 
+                uye.user.username.toLowerCase().includes(arananKucuk) ||
                 mevki.toLowerCase() === arananKucuk ||
-                (bayrak && bayrak.includes(arananKelime)) || 
-                uye.user.username.toLowerCase().includes(arananKucuk)
+                (bayrak && bayrak.includes(arananKelime))
             ) {
                 bulunanlar.push({
                     id: uye.id,
                     mention: `<@${uye.id}>`,
                     ad: oyuncuAdi,
-                    mevki: mevki || 'Belirtilmemiş',
-                    bayrak: bayrak || '🏳️',
+                    mevki: mevki,
+                    bayrak: bayrak,
                     deger: piyasaDegeri,
                     avatar: uye.user.displayAvatarURL({ dynamic: true })
                 });
             }
         });
 
+        // Oyuncu bulunamadıysa
         if (bulunanlar.length === 0) {
             return message.reply(`🔍 Sunucuda **"${arananKelime}"** kriterine uygun hiçbir oyuncu bulunamadı kanka.`);
         }
@@ -112,7 +119,7 @@ client.on('messageCreate', async (message) => {
         }
 
     } catch (err) { 
-        console.error(err); 
+        console.error("Hata oluştu:", err); 
     }
 });
 
