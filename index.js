@@ -23,23 +23,21 @@ client.on('messageCreate', async (message) => {
     const command = args.shift().toLowerCase();
 
     if (command === 'ara') {
-        const arananIcerik = args.join(" "); // Kullanıcının yazdığı her şeyi (SNT, 🇳🇬 veya İsim) toplar
+        const arananIcerik = args.join(" ");
 
         if (!arananIcerik) {
-            return message.reply("❌ **Hatalı Kullanım!** Lütfen aradığınız şeyi yazın.\nÖrnek: `.ara SNT` veya `.ara 🇳🇬` veya `.ara Çağatay`");
+            return message.reply("❌ **Hatalı Kullanım!** Lütfen aradığınız şeyi yazın.\nÖrnek: `.ara SNT` veya `.ara 🇳🇬` veya `.ara Oyuncuİsmi`");
         }
 
         const userId = message.author.id;
 
-        // Hafızaya kaydet
         oyuncuVeritabanı.set(userId, {
             arama: arananIcerik,
             tarih: new Date().toLocaleDateString('tr-TR')
         });
 
-        // Kaliteli ve Güzel Görünümlü Mesaj (Embed)
         const araEmbed = new EmbedBuilder()
-            .setColor('#2F3136') // Discord koyu tema rengi (Asil durur)
+            .setColor('#2F3136')
             .setTitle('🔍 Aktif Arama İlanı')
             .setDescription(`Arama kaydı başarıyla oluşturuldu. Sunucudan çıkış yaparsanız ilan otomatik silinir.`)
             .addFields(
@@ -47,13 +45,12 @@ client.on('messageCreate', async (message) => {
                 { name: '📝 Aranan / Detay', value: `\`\`\` ${arananIcerik} \`\`\``, inline: true }
             )
             .setTimestamp()
-            .setFooter({ text: `${message.guild.name} • Oyuncu Arama`, iconURL: message.guild.iconURL() });
+            .setFooter({ text: `${message.guild.name} • Oyuncu Arama` });
 
         return message.reply({ embeds: [araEmbed] });
     }
 });
 
-// Sunucudan biri çıkarsa ilanını siler
 client.on('guildMemberRemove', (member) => {
     if (oyuncuVeritabanı.has(member.id)) {
         oyuncuVeritabanı.delete(member.id);
