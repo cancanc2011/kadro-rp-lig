@@ -21,14 +21,17 @@ const CONFIG = {
     sunucuId: "1511859511634301059"
 };
 
-// Veritabanı dosyasını güvenli okuma fonksiyonu
+// Çökmeyi önleyen ekstra güvenli veritabanı okuyucu
 function getDatabaseData() {
     try {
         if (fs.existsSync('json.sqlite')) {
-            return JSON.parse(fs.readFileSync('json.sqlite', 'utf8'));
+            const fileContent = fs.readFileSync('json.sqlite', 'utf8');
+            if (fileContent.trim().length > 0) {
+                return JSON.parse(fileContent);
+            }
         }
     } catch (e) {
-        console.log("Veritabanı okunurken bir sorun oluştu veya henüz veri yok.");
+        console.log("Veritabanı okuma hatası engellendi.");
     }
     return {};
 }
@@ -40,7 +43,6 @@ client.on('ready', () => {
 client.on('messageCreate', async (message) => {
     if (message.author.bot || !message.guild || message.guild.id !== CONFIG.sunucuId) return;
 
-    // Sadece .ara ile başlayan mesajları kontrol et
     if (message.content.startsWith('.ara')) {
         const args = message.content.slice(4).trim().split('/');
         const aramaTerimi = message.content.slice(4).trim().toLowerCase();
@@ -49,7 +51,7 @@ client.on('messageCreate', async (message) => {
         const keys = Object.keys(dbData);
         const profilKeys = keys.filter(k => k.startsWith('profil_'));
 
-        // 1. .ara oyuncular (Tüm listeyi çeker)
+        // 1. .ara oyuncular
         if (aramaTerimi === 'oyuncular') {
             if (profilKeys.length === 0) {
                 return message.reply("📋 Ligde henüz kayıtlı hiçbir oyuncu bulunmuyor!");
@@ -71,7 +73,7 @@ client.on('messageCreate', async (message) => {
             return message.reply({ embeds: [embed] });
         }
 
-        // 2. .ara SNT/oyuncu adı/bayrak (Detaylı filtreleme)
+        // 2. .ara SNT/oyuncu adı/bayrak
         if (args.length >= 2) {
             const filtreMevki = args[0] ? args[0].trim().toUpperCase() : null;
             const filtreIsim = args[1] ? args[1].trim().toLowerCase() : null;
@@ -107,10 +109,10 @@ client.on('messageCreate', async (message) => {
             return message.reply({ embeds: [embed] });
         }
 
-        // Hatalı kullanım uyarısı
         return message.reply("⚠️ **Hatalı Kullanım!**\n• Tüm listeyi görmek için: `.ara oyuncular` \n• Detaylı arama için: `.ara Mevki / Oyuncu Adı / Bayrak` formatını kullanmalısın.");
     }
 });
 
-client
-    .login(CONFIG.token);
+client.on('error', error => console.error('Discord bağlantı hatası:', error));
+
+client.login(CONFIG.token);
