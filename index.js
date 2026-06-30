@@ -110,5 +110,7 @@ client.on('messageCreate', async (message) => {
     }
 });
 
-client.
-    login(CONFIG.token);
+const CONFIG = {
+    token: MTUyMTIwMTE1MDIzNjQyNjMxMQ.Gw__A0.wK4s5otLXF_L_cexMaGeX1UTHOco9QaOR2xPtg,
+    sunucuId: "1511859511634301059"
+};
