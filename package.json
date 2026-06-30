@@ -1,16 +1,16 @@
 {
-  "name": "lig-arama-botu",
+  "name": "kadro-rp-lig",
   "version": "1.0.0",
-  "description": "Railway uyumlu arama botu",
+  "description": "",
   "main": "index.js",
   "scripts": {
     "start": "node index.js"
   },
-  "engines": {
-    "node": "22.x"
-  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
   "dependencies": {
-    "discord.js": "^14.15.3",
-    "express": "^4.19.2"
+    "discord.js": "^14.14.1",
+    "dotenv": "^16.4.5"
   }
 }
