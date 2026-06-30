@@ -1,116 +1,74 @@
 const { Client, GatewayIntentBits, EmbedBuilder } = require('discord.js');
-const express = require('express');
-const fs = require('fs');
-
-const app = express();
-const port = process.env.PORT || 3000;
-app.get('/', (req, res) => res.send('Arama Botu Aktif!'));
-app.listen(port);
+require('dotenv').config();
 
 const client = new Client({
     intents: [
-        GatewayIntentBits.Guilds,
-        GatewayIntentBits.GuildMessages,
-        GatewayIntentBits.MessageContent
+        GatewayIntentBits.Guilds, 
+        GatewayIntentBits.GuildMessages, 
+        GatewayIntentBits.MessageContent, 
+        GatewayIntentBits.GuildMembers
     ]
 });
 
-const CONFIG = {
-    token: "DORDUNCU_BOT_TOKENINIZI_BURAYA_YAZIN",
-    sunucuId: "1511859511634301059"
-};
-
-// Veritabanını hiçbir kütüphane olmadan doğrudan ham veri olarak okur
-function veritabaniniOku() {
-    try {
-        if (fs.existsSync('json.sqlite')) {
-            const veri = fs.readFileSync('json.sqlite', 'utf8');
-            return JSON.parse(veri);
-        }
-    } catch (hata) {
-        console.log("Veri okuma pürüzü engellendi.");
-    }
-    return {};
-}
-
-client.on('ready', () => {
-    console.log(`🔍 ${client.user.tag} arama botu sorunsuz hazır!`);
+client.once('ready', () => {
+    console.log(`⚽ Arama Botu Hazır Kanka!`);
 });
 
 client.on('messageCreate', async (message) => {
-    if (message.author.bot || !message.guild || message.guild.id !== CONFIG.sunucuId) return;
+    try {
+        if (message.author.bot || !message.guild) return;
 
-    if (message.content.startsWith('.ara')) {
-        const args = message.content.slice(4).trim().split('/');
-        const aramaTerimi = message.content.slice(4).trim().toLowerCase();
+        const icerik = message.content.trim();
+        const icerikKucuk = icerik.toLowerCase();
 
-        const data = veritabaniniOku();
-        const anahtarlar = Object.keys(data);
-        const profilAnahtarlari = anahtarlar.filter(k => k.startsWith('profil_'));
+        // --- .ara OYUNCU ARAMA KOMUTU ---
+        if (icerikKucuk.startsWith('.ara')) {
+            const arananKelime = icerik.substring(4).trim();
+            if (!arananKelime) return message.reply('❌ Lütfen aramak istediğin oyuncunun ismini yaz kanka! Örn: `.ara C.Ronaldo`');
 
-        // 1. .ara oyuncular
-        if (aramaTerimi === 'oyuncular') {
-            if (profilAnahtarlari.length === 0) {
-                return message.reply("📋 Ligde henüz kayıtlı hiçbir oyuncu bulunmuyor!");
+            // Sunucudaki üyeleri çekip filtreliyoruz
+            const uyeler = await message.guild.members.fetch();
+            const bulunanUye = uyeler.find(m => m.displayName.toLowerCase().includes(arananKelime.toLowerCase()) || m.user.username.toLowerCase().includes(arananKelime.toLowerCase()));
+
+            if (!bulunanUye) return message.reply('🔍 Aradığın kriterlere uygun bir oyuncu lisansı bulunamadı kanka.');
+
+            const displayName = bulunanUye.displayName;
+            // İsim formatını parçalara ayırıyoruz: İsim | Mevki | 🇫🇷 | 100M tarzı yapılar için
+            const parcalar = displayName.split('|').map(p => p.trim());
+
+            let oyuncuAdi = parcalar[0] || bulunanUye.user.username;
+            let mevki = 'Belirtilmemiş';
+            let bayrak = '🏳️';
+            let piyasaDegeri = 'Belirtilmemiş';
+
+            if (parcalar.length >= 2) mevki = parcalar[1];
+            if (parcalar.length >= 3) bayrak = parcalar[2];
+            if (parcalar.length >= 4) {
+                piyasaDegeri = parcalar[3];
+            } else if (parcalar.length === 3 && (parcalar[2].includes('M') || parcalar[2].includes('K') || parcalar[2].includes('B') || parcalar[2].includes('€'))) {
+                // Eğer bayrak girilmediyse ve 3. parça direkt değerse
+                piyasaDegeri = parcalar[2];
+                bayrak = '🏳️';
             }
 
-            const embed = new EmbedBuilder()
-                .setTitle("📋 LİGDEKİ TÜM AKTİF OYUNCULARIN LİSTESİ")
-                .setColor("Blurple")
+            const araEmbed = new EmbedBuilder()
+                .setTitle(`🪪 REALITY LEAGUE - OYUNCU LİSANS KART`)
+                .setThumbnail(bulunanUye.user.displayAvatarURL({ dynamic: true }))
+                .setColor(0x2F3136)
+                .setDescription(`⚽ **Kullanıcı Bilgisi:** <@${bulunanUye.id}>`)
+                .addFields(
+                    { name: '👤 Oyuncu Adı', value: `\`\`\`${oyuncuAdi}\`\`\``, inline: true },
+                    { name: '🏃‍♂️ Mevki / Pozisyon', value: `\`\`\`${mevki}\`\`\``, inline: true },
+                    { name: '🌍 Ülke / Uyruk', value: ` ${bayrak}`, inline: true },
+                    { name: '💰 Piyasa Değeri', value: `\`\`\`${piyasaDegeri}\`\`\``, inline: true }
+                )
+                .setFooter({ text: `Sorgulayan: ${message.author.username}`, iconURL: message.author.displayAvatarURL({ dynamic: true }) })
                 .setTimestamp();
 
-            let listeMetni = "";
-            profilAnahtarlari.forEach((anahtar, index) => {
-                const oyuncu = data[anahtar];
-                const userId = anahtar.replace('profil_', '');
-                listeMetni += `**${index + 1}.** 🏃 **${oyuncu.isim || "Bilinmiyor"}** | 🛡️ \`${oyuncu.mevki || "N/A"}\` | 🏳️ ${oyuncu.bayrak || "🏳️"} | 💰 \`${oyuncu.deger || "0"}\` (<@${userId}>)\n`;
-            });
-
-            embed.setDescription(listeMetni);
-            return message.reply({ embeds: [embed] });
+            return message.reply({ embeds: [araEmbed] });
         }
 
-        // 2. .ara SNT/oyuncu adı/bayrak
-        if (args.length >= 2) {
-            const filtreMevki = args[0] ? args[0].trim().toUpperCase() : null;
-            const filtreIsim = args[1] ? args[1].trim().toLowerCase() : null;
-            const filtreBayrak = args[2] ? args[2].trim() : null;
-
-            const bulunanlar = profilAnahtarlari.filter(anahtar => {
-                const oyuncu = data[anahtar];
-                const mevkiUyumlu = filtreMevki ? (oyuncu.mevki && oyuncu.mevki.toUpperCase().includes(filtreMevki)) : true;
-                const isimUyumlu = filtreIsim ? (oyuncu.isim && oyuncu.isim.toLowerCase().includes(filtreIsim)) : true;
-                const bayrakUyumlu = filtreBayrak ? (oyuncu.bayrak && oyuncu.bayrak.includes(filtreBayrak)) : true;
-                return mevkiUyumlu && isimUyumlu && bayrakUyumlu;
-            });
-
-            if (bulunanlar.length === 0) {
-                return message.reply("🔍 Aradığın kriterlere uygun bir oyuncu bulunamadı!");
-            }
-
-            const embed = new EmbedBuilder()
-                .setTitle("🔍 Detaylı Oyuncu Arama Sonuçları")
-                .setColor("Gold")
-                .setFooter({ text: `Toplam ${bulunanlar.length} oyuncu listelendi.` })
-                .setTimestamp();
-
-            bulunanlar.forEach(anahtar => {
-                const oyuncu = data[anahtar];
-                embed.addFields({
-                    name: `🏃 ${oyuncu.isim || "Bilinmeyen"} (${oyuncu.bayrak || "🏳️"})`,
-                    value: `🛡️ **Mevki:** \`${oyuncu.mevki || "N/A"}\`\n💰 **Değer:** \`${oyuncu.deger || "0"}\`\n🏋️ **Antrenman:** \`${oyuncu.ant || "0/5"}\`\n⚽ **Penaltı:** \`${oyuncu.penGol || 0} Gol / ${oyuncu.penKacis || 0} Kaçan\``,
-                    inline: false
-                });
-            });
-
-            return message.reply({ embeds: [embed] });
-        }
-
-        return message.reply("⚠️ **Hatalı Kullanım!**\n• Tüm listeyi görmek için: `.ara oyuncular` \n• Detaylı arama için: `.ara Mevki / Oyuncu Adı / Bayrak` formatını kullanmalısın.");
-    }
+    } catch (err) { console.error(err); }
 });
 
-const CONFIG = {
-    token: "DISCORD_DAN_KOPYALADIGIN_UPUZUN_BOT_SIFRESINI_BURAYA_KOY",
-    sunucuId: "1511859511634301059"
-};
+client.login(process.env.TOKEN);
