@@ -1,12 +1,12 @@
 const { Client, GatewayIntentBits, EmbedBuilder } = require('discord.js');
 const express = require('express');
-const fs = require('fs');
+const db = require('quick.db');
 
 const app = express();
 const port = process.env.PORT || 3000;
 
 app.get('/', (req, res) => res.send('Arama Botu Aktif!'));
-app.listen(port, '0.0.0.0', () => console.log(`Web sunucusu ${port} portunda hazır.`));
+app.listen(port);
 
 const client = new Client({
     intents: [
@@ -17,27 +17,12 @@ const client = new Client({
 });
 
 const CONFIG = {
-    token: "DISCORD_DAN_ALDIĞIN_YENI_TOKENI_TAM_BURAYA_YAPIŞTIR",
+    token: "DORDUNCU_BOT_TOKENINIZI_BURAYA_YAZIN",
     sunucuId: "1511859511634301059"
 };
 
-// Çökmeyi önleyen ekstra güvenli veritabanı okuyucu
-function getDatabaseData() {
-    try {
-        if (fs.existsSync('json.sqlite')) {
-            const fileContent = fs.readFileSync('json.sqlite', 'utf8');
-            if (fileContent.trim().length > 0) {
-                return JSON.parse(fileContent);
-            }
-        }
-    } catch (e) {
-        console.log("Veritabanı okuma hatası engellendi.");
-    }
-    return {};
-}
-
 client.on('ready', () => {
-    console.log(`🔍 ${client.user.tag} arama moduyla tamamen hazır!`);
+    console.log(`🔍 ${client.user.tag} arama botu sorunsuz hazır!`);
 });
 
 client.on('messageCreate', async (message) => {
@@ -47,13 +32,12 @@ client.on('messageCreate', async (message) => {
         const args = message.content.slice(4).trim().split('/');
         const aramaTerimi = message.content.slice(4).trim().toLowerCase();
 
-        const dbData = getDatabaseData();
-        const keys = Object.keys(dbData);
-        const profilKeys = keys.filter(k => k.startsWith('profil_'));
-
         // 1. .ara oyuncular
         if (aramaTerimi === 'oyuncular') {
-            if (profilKeys.length === 0) {
+            const tumVeriler = db.all(); 
+            const oyuncuListesi = tumVeriler.filter(veri => veri.id.startsWith('profil_'));
+
+            if (oyuncuListesi.length === 0) {
                 return message.reply("📋 Ligde henüz kayıtlı hiçbir oyuncu bulunmuyor!");
             }
 
@@ -63,9 +47,9 @@ client.on('messageCreate', async (message) => {
                 .setTimestamp();
 
             let listeMetni = "";
-            profilKeys.forEach((key, index) => {
-                const data = dbData[key];
-                const userId = key.replace('profil_', '');
+            oyuncuListesi.forEach((o, index) => {
+                const data = o.value;
+                const userId = o.id.replace('profil_', '');
                 listeMetni += `**${index + 1}.** 🏃 **${data.isim || "Bilinmiyor"}** | 🛡️ \`${data.mevki || "N/A"}\` | 🏳️ ${data.bayrak || "🏳️"} | 💰 \`${data.deger || "0"}\` (<@${userId}>)\n`;
             });
 
@@ -79,8 +63,11 @@ client.on('messageCreate', async (message) => {
             const filtreIsim = args[1] ? args[1].trim().toLowerCase() : null;
             const filtreBayrak = args[2] ? args[2].trim() : null;
 
-            const bulunanlar = profilKeys.filter(key => {
-                const d = dbData[key];
+            const tumVeriler = db.all();
+            const oyuncular = tumVeriler.filter(veri => veri.id.startsWith('profil_'));
+
+            const bulunanlar = oyuncular.filter(o => {
+                const d = o.value;
                 const mevkiUyuşuyor = filtreMevki ? (d.mevki && d.mevki.toUpperCase().includes(filtreMevki)) : true;
                 const isimUyuşuyor = filtreIsim ? (d.isim && d.isim.toLowerCase().includes(filtreIsim)) : true;
                 const bayrakUyuşuyor = filtreBayrak ? (d.bayrak && d.bayrak.includes(filtreBayrak)) : true;
@@ -97,8 +84,8 @@ client.on('messageCreate', async (message) => {
                 .setFooter({ text: `Toplam ${bulunanlar.length} oyuncu listelendi.` })
                 .setTimestamp();
 
-            bulunanlar.forEach(key => {
-                const data = dbData[key];
+            bulunanlar.forEach(o => {
+                const data = o.value;
                 embed.addFields({
                     name: `🏃 ${data.isim || "Bilinmeyen"} (${data.bayrak || "🏳️"})`,
                     value: `🛡️ **Mevki:** \`${data.mevki || "N/A"}\`\n💰 **Değer:** \`${data.deger || "0"}\`\n🏋️ **Antrenman:** \`${data.ant || "0/5"}\`\n⚽ **Penaltı:** \`${data.penGol || 0} Gol / ${data.penKacis || 0} Kaçan\``,
@@ -113,6 +100,5 @@ client.on('messageCreate', async (message) => {
     }
 });
 
-client.on('error', error => console.error('Discord bağlantı hatası:', error));
-
-client.login(CONFIG.token);
+client.
+    login(CONFIG.token);
