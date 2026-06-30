@@ -1,104 +1,88 @@
 const { Client, GatewayIntentBits, EmbedBuilder } = require('discord.js');
-const express = require('express');
-const db = require('quick.db');
-
-const app = express();
-const port = process.env.PORT || 3000;
-
-app.get('/', (req, res) => res.send('Arama Botu Aktif!'));
-app.listen(port);
 
 const client = new Client({
     intents: [
         GatewayIntentBits.Guilds,
         GatewayIntentBits.GuildMessages,
-        GatewayIntentBits.MessageContent
+        GatewayIntentBits.MessageContent,
+        GatewayIntentBits.GuildMembers
     ]
 });
 
-const CONFIG = {
-    token: "DORDUNCU_BOT_TOKENINIZI_BURAYA_YAZIN",
-    sunucuId: "1511859511634301059"
-};
+// Botun ön eki (Prefix)
+const PREFIX = ".";
 
-client.on('ready', () => {
-    console.log(`🔍 ${client.user.tag} arama botu sorunsuz hazır!`);
+// Oyuncu verilerini geçici olarak tutacağımız hafıza (Map)
+// Sunucu kapansa da silinmemesini istersen ileride veritabanı (db) ekleyebiliriz.
+const oyuncuVeritabanı = new Map();
+
+client.once('ready', () => {
+    console.log(`[BOT] ${client.user.tag} olarak giriş yapıldı!`);
 });
 
+// --- KOMUT SİSTEMİ ---
 client.on('messageCreate', async (message) => {
-    if (message.author.bot || !message.guild || message.guild.id !== CONFIG.sunucuId) return;
+    if (message.author.bot || !message.content.startsWith(PREFIX)) return;
 
-    if (message.content.startsWith('.ara')) {
-        const args = message.content.slice(4).trim().split('/');
-        const aramaTerimi = message.content.slice(4).trim().toLowerCase();
+    const args = message.content.slice(PREFIX.length).trim().split(/ +/);
+    const command = args.shift().toLowerCase();
 
-        // 1. .ara oyuncular
-        if (aramaTerimi === 'oyuncular') {
-            const tumVeriler = db.all(); 
-            const oyuncuListesi = tumVeriler.filter(veri => veri.id.startsWith('profil_'));
+    // .ara komutu
+    if (command === 'ara') {
+        // Kullanıcının yazdığı metni "/" işaretlerine göre bölüyoruz
+        const girdi = args.join(" ");
+        const parcalar = girdi.split("/");
 
-            if (oyuncuListesi.length === 0) {
-                return message.reply("📋 Ligde henüz kayıtlı hiçbir oyuncu bulunmuyor!");
-            }
-
-            const embed = new EmbedBuilder()
-                .setTitle("📋 LİGDEKİ TÜM AKTİF OYUNCULARIN LİSTESİ")
-                .setColor("Blurple")
-                .setTimestamp();
-
-            let listeMetni = "";
-            oyuncuListesi.forEach((o, index) => {
-                const data = o.value;
-                const userId = o.id.replace('profil_', '');
-                listeMetni += `**${index + 1}.** 🏃 **${data.isim || "Bilinmiyor"}** | 🛡️ \`${data.mevki || "N/A"}\` | 🏳️ ${data.bayrak || "🏳️"} | 💰 \`${data.deger || "0"}\` (<@${userId}>)\n`;
-            });
-
-            embed.setDescription(listeMetni);
-            return message.reply({ embeds: [embed] });
+        if (parcalar.length < 3) {
+            const hataEmbed = new EmbedBuilder()
+                .setColor('#FF3333')
+                .setTitle('❌ Hatalı Kullanım!')
+                .setDescription(`Lütfen komutu şu formatta yazın:\n\`${PREFIX}ara SNT/bayrak_emoji/oyuncu_isim\``)
+                .setFooter({ text: 'Örnek: .ara SNT/🇹🇷/Çağatay' });
+            
+            return message.reply({ embeds: [hataEmbed] });
         }
 
-        // 2. .ara SNT/oyuncu adı/bayrak
-        if (args.length >= 2) {
-            const filtreMevki = args[0] ? args[0].trim().toUpperCase() : null;
-            const filtreIsim = args[1] ? args[1].trim().toLowerCase() : null;
-            const filtreBayrak = args[2] ? args[2].trim() : null;
+        const snt = parcalar[0].trim();
+        const bayrak = parcalar[1].trim();
+        const oyuncuIsim = parcalar[2].trim();
+        const userId = message.author.id;
 
-            const tumVeriler = db.all();
-            const oyuncular = tumVeriler.filter(veri => veri.id.startsWith('profil_'));
+        // Oyuncuyu hafızaya kaydet/güncelle
+        oyuncuVeritabanı.set(userId, {
+            snt: snt,
+            bayrak: bayrak,
+            isim: oyuncuIsim,
+            KayıtTarihi: new Date().toLocaleDateString('tr-TR')
+        });
 
-            const bulunanlar = oyuncular.filter(o => {
-                const d = o.value;
-                const mevkiUyuşuyor = filtreMevki ? (d.mevki && d.mevki.toUpperCase().includes(filtreMevki)) : true;
-                const isimUyuşuyor = filtreIsim ? (d.isim && d.isim.toLowerCase().includes(filtreIsim)) : true;
-                const bayrakUyuşuyor = filtreBayrak ? (d.bayrak && d.bayrak.includes(filtreBayrak)) : true;
-                return mevkiUyuşuyor && isimUyuşuyor && bayrakUyuşuyor;
-            });
+        // Kaliteli ve Şık Embed Tasarımı
+        const basariliEmbed = new EmbedBuilder()
+            .setColor('#2F3136') // Discord koyu tema rengi, çok asil durur
+            .setTitle('🔍 Oyuncu Arama Kaydı Oluşturuldu')
+            .setThumbnail(message.author.displayAvatarURL({ dynamic: true }))
+            .addFields(
+                { name: '👤 Oyuncu', value: `> ${message.author} (${oyuncuIsim})`, inline: false },
+                { name: '🏷️ SNT', value: `\`\`\`📊 ${snt}\`\`\``, inline: true },
+                { name: '🏳️ Bölge / Bayrak', value: `\`\`\` ${bayrak} \`\`\``, inline: true },
+            )
+            .setImage('https://i.ibb.co/v3mNn7n/divider.png') // İsteğe bağlı: Araya şık bir çizgi görseli (varsa)
+            .setDescription('**Durum:** Oyuncu başarıyla listeye eklendi. Sunucudan çıkış yaparsa kaydı otomatik olarak silinecektir.')
+            .setTimestamp()
+            .setFooter({ text: `${message.guild.name} • Sistem`, iconURL: message.guild.iconURL() });
 
-            if (bulunanlar.length === 0) {
-                return message.reply("🔍 Aradığın kriterlere uygun bir oyuncu bulunamadı!");
-            }
-
-            const embed = new EmbedBuilder()
-                .setTitle("🔍 Detaylı Oyuncu Arama Sonuçları")
-                .setColor("Gold")
-                .setFooter({ text: `Toplam ${bulunanlar.length} oyuncu listelendi.` })
-                .setTimestamp();
-
-            bulunanlar.forEach(o => {
-                const data = o.value;
-                embed.addFields({
-                    name: `🏃 ${data.isim || "Bilinmeyen"} (${data.bayrak || "🏳️"})`,
-                    value: `🛡️ **Mevki:** \`${data.mevki || "N/A"}\`\n💰 **Değer:** \`${data.deger || "0"}\`\n🏋️ **Antrenman:** \`${data.ant || "0/5"}\`\n⚽ **Penaltı:** \`${data.penGol || 0} Gol / ${data.penKacis || 0} Kaçan\``,
-                    inline: false
-                });
-            });
-
-            return message.reply({ embeds: [embed] });
-        }
-
-        return message.reply("⚠️ **Hatalı Kullanım!**\n• Tüm listeyi görmek için: `.ara oyuncular` \n• Detaylı arama için: `.ara Mevki / Oyuncu Adı / Bayrak` formatını kullanmalısın.");
+        return message.reply({ embeds: [basariliEmbed] });
     }
 });
 
-client.
-    login(CONFIG.token);
+// --- SUNUCUDAN ÇIKANLARI SİLME SİSTEMİ ---
+client.on('guildMemberRemove', (member) => {
+    // Eğer çıkan kişinin ID'si hafızada varsa siler
+    if (oyuncuVeritabanı.has(member.id)) {
+        oyuncuVeritabanı.delete(member.id);
+        console.log(`[SİSTEM] ${member.user.tag} sunucudan çıktı, arama kaydı silindi.`);
+    }
+});
+
+// Botunun Tokenini buraya yapıştıracaksın (Railway veya Replit kullanıyorsan .env içine koymalısın)
+client.login('BOT_TOKENİNİ_BURAYA_YAZ');
