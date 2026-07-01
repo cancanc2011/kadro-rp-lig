@@ -11,7 +11,7 @@ const client = new Client({
 });
 
 client.once('ready', () => {
-    console.log(`⚽ Gelişmiş Arama Botu %100 Hazır Kanka!`);
+    console.log(`⚽ Gelişmiş Arama Botu Hazır Kanka!`);
 });
 
 client.on('messageCreate', async (message) => {
@@ -23,31 +23,31 @@ client.on('messageCreate', async (message) => {
         // Sadece .ara ile başlayan komutları kontrol et
         if (!icerik.toLowerCase().startsWith('.ara')) return;
 
-        const arananKelime = icerik.substring(4).trim();
-        if (!arananKelime) {
-            return message.reply('❌ Lütfen aramak istediğin ismi, mevkiyi veya bayrağı yaz kanka! Örn: `.ara SNT`, `.ara 🇫🇷` veya `.ara Icardi`');
+        const arananOrijinal = icerik.substring(4).trim();
+        const arananKucuk = arananOrijinal.toLowerCase();
+
+        if (!arananOrijinal) {
+            return message.reply('❌ Lütfen aramak istediğin mevkiyi veya oyuncu adını yaz kanka! Örn: `.ara SNT` veya `.ara snt`');
         }
 
-        // Verilen sunucu ID'sine göre tüm üyeleri eksiksiz ve zorlayarak çekiyoruz
+        // Sunucudaki tüm üyeleri zorlayarak çekiyoruz
         const sunucu = client.guilds.cache.get('1511859511634301059') || message.guild;
         const uyeler = await sunucu.members.fetch({ force: true });
         
         let bulunanlar = [];
-        const arananKucuk = arananKelime.toLowerCase();
 
         uyeler.forEach(uye => {
             if (uye.user.bot) return;
 
             const displayName = uye.displayName;
+            // İsim formatını parçalıyoruz ve boşlukları temizliyoruz
             const parcalar = displayName.split('|').map(p => p.trim());
             
-            // Temel değişkenleri tanımlıyoruz
             let oyuncuAdi = parcalar[0] || uye.user.username;
             let mevki = 'Belirtilmemiş';
             let bayrak = '🏳️';
             let piyasaDegeri = 'Belirtilmemiş';
 
-            // Parçalama kontrolü
             if (parcalar.length >= 2) mevki = parcalar[1];
             if (parcalar.length >= 3) bayrak = parcalar[2];
             if (parcalar.length >= 4) {
@@ -57,12 +57,16 @@ client.on('messageCreate', async (message) => {
                 bayrak = '🏳️';
             }
 
-            // Gelişmiş Arama Filtresi (Eşleşme Kontrolü)
+            // Arama Kontrolleri (Küçük/Büyük Harf Duyarsız)
+            const temizMevki = mevki.toLowerCase();
+            const temizOyuncuAdi = oyuncuAdi.toLowerCase();
+            const temizUsername = uye.user.username.toLowerCase();
+
             if (
-                oyuncuAdi.toLowerCase().includes(arananKucuk) || 
-                uye.user.username.toLowerCase().includes(arananKucuk) ||
-                mevki.toLowerCase() === arananKucuk ||
-                (bayrak && bayrak.includes(arananKelime))
+                temizMevki === arananKucuk || // Mevki tam eşleşme (.ara snt veya .ara SNT)
+                temizOyuncuAdi.includes(arananKucuk) || // Oyuncu ismi içeriyor mu
+                temizUsername.includes(arananKucuk) || // Discord kullanıcı adı içeriyor mu
+                (bayrak && bayrak.includes(arananOrijinal)) // Emoji/Bayrak araması
             ) {
                 bulunanlar.push({
                     id: uye.id,
@@ -76,12 +80,12 @@ client.on('messageCreate', async (message) => {
             }
         });
 
-        // Oyuncu bulunamadıysa
+        // Oyuncu veya mevki bulunamadıysa
         if (bulunanlar.length === 0) {
-            return message.reply(`🔍 Sunucuda **"${arananKelime}"** kriterine uygun hiçbir oyuncu bulunamadı kanka.`);
+            return message.reply(`🔍 Sunucuda **"${arananOrijinal}"** kriterine uygun hiçbir oyuncu veya mevki bulunamadı kanka.`);
         }
 
-        // --- DURUM 1: SADECE TEK BİR OYUNCU BULUNDUYSA ---
+        // --- DURUM 1: SADECE TEK BİR OYUNCU BULUNDUYSA (İSİM ARAMASI) ---
         if (bulunanlar.length === 1) {
             const o = bulunanlar[0];
             const tekEmbed = new EmbedBuilder()
@@ -101,7 +105,7 @@ client.on('messageCreate', async (message) => {
             return message.reply({ embeds: [tekEmbed] });
         }
 
-        // --- DURUM 2: BİRDEN FAZLA OYUNCU BULUNDUYSA ---
+        // --- DURUM 2: BİRDEN FAZLA OYUNCU BULUNDUYSA (MEVKİ LİSTELEME) ---
         if (bulunanlar.length > 1) {
             let listeMetni = '';
             bulunanlar.forEach((o, index) => {
@@ -112,7 +116,7 @@ client.on('messageCreate', async (message) => {
 
             const listeEmbed = new EmbedBuilder()
                 .setTitle(`🔍 ARAMA SONUÇLARI (${bulunanlar.length} Oyuncu Bulundu)`)
-                .setDescription(`Sunucuda **"${arananKelime}"** kriterine uyan tüm lisanslar:\n\n${listeMetni}`)
+                .setDescription(`Sunucuda **"${arananOrijinal}"** kriterine uyan lisanslar:\n\n${listeMetni}`)
                 .setColor(0x00A2E8)
                 .setFooter({ text: `Sorgulayan: ${message.author.username}`, iconURL: message.author.displayAvatarURL({ dynamic: true }) })
                 .setTimestamp();
@@ -121,9 +125,9 @@ client.on('messageCreate', async (message) => {
         }
 
     } catch (err) { 
-        console.error("Hata oluştu:", err); 
+        console.error("Hata oluştu kanka:", err); 
     }
 });
 
-client.login(
-    process.env.TOKEN);
+client.login(process.env.TOKEN);
+
