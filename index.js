@@ -10,18 +10,6 @@ const client = new Client({
 });
 
 // Oyun Durumu Hafızası
-const { Client, GatewayIntentBits, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, ComponentType } = require('discord.js');
-
-const client = new Client({
-    intents: [
-        GatewayIntentBits.Guilds,
-        GatewayIntentBits.GuildMessages,
-        GatewayIntentBits.MessageContent,
-        GatewayIntentBits.GuildMembers
-    ]
-});
-
-// Oyun Durumu Hafızası
 let oyun = {
     aktif: false,
     lobi: [],
@@ -255,9 +243,7 @@ function oyunBittiKontrol(channel) {
     return false;
 }
 
-// ⚠️ GÜVENLİ GİRİŞ KONTROLÜ (HATA YAPMAZ)
 const botTokeni = process.env.DISCORD_TOKEN;
-
 if (!botTokeni || botTokeni.trim() === "") {
     console.error("❌ HATA: Railway Variables paneline 'DISCORD_TOKEN' eklenmemiş!");
 } else {
