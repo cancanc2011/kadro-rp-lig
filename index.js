@@ -10,19 +10,31 @@ const client = new Client({
 });
 
 // Oyun Durumu Hafızası
+const { Client, GatewayIntentBits, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, ComponentType } = require('discord.js');
+
+const client = new Client({
+    intents: [
+        GatewayIntentBits.Guilds,
+        GatewayIntentBits.GuildMessages,
+        GatewayIntentBits.MessageContent,
+        GatewayIntentBits.GuildMembers
+    ]
+});
+
+// Oyun Durumu Hafızası
 let oyun = {
     aktif: false,
     lobi: [],
-    roller: {}, // userId -> 'Vampir', 'Köylü', 'Doktor'
+    roller: {}, 
     yasayanlar: [],
-    asama: 'lobi', // lobi, gece, gündüz
-    vampirOylari: {}, // vampirSeçimi -> oySayısı
+    asama: 'lobi', 
+    vampirOylari: {}, 
     koyOylari: {},
     kanalId: null
 };
 
 client.on('ready', () => {
-    console.log(`🐺 Vampir Köylü Botu Giriş Yaptı: ${client.user.tag}`);
+    console.log(`✅ BOT AKTİF: ${client.user.tag} başarıyla giriş yaptı!`);
 });
 
 client.on('messageCreate', async (message) => {
@@ -31,7 +43,7 @@ client.on('messageCreate', async (message) => {
     const args = message.content.slice(1).trim().split(/ +/);
     const cmd = args.shift().toLowerCase();
 
-    // 🚪 .vampirköylü - Lobi Başlatma
+    // 🚪 .vampirköylü / .vk
     if (cmd === 'vampirköylü' || cmd === 'vk') {
         if (oyun.aktif) return message.reply("❌ Zaten devam eden bir oyun var!");
 
@@ -54,11 +66,9 @@ client.on('messageCreate', async (message) => {
         );
 
         const lobiMesaj = await message.channel.send({ embeds: [embed], components: [row] });
+        const collector = lobiMesaj.createMessageComponentCollector({ componentType: ComponentType.Button, time: 300000 });
 
-        // Buton Takibi
-        const collector = lobiMesaj.createMessageComponentCollector({ componentType: ComponentType.Button, time: 300000 }); // 5 dk lobi süresi
-
-        collector.on('collection', async (interaction) => {
+        collector.on('collect', async (interaction) => {
             if (interaction.customId === 'vk_katil') {
                 if (oyun.lobi.includes(interaction.user.id)) {
                     return interaction.reply({ content: "Zaten lobiye katılmışsın!", ephemeral: true });
@@ -73,7 +83,7 @@ client.on('messageCreate', async (message) => {
                     return interaction.reply({ content: "Zaten lobide değilsin!", ephemeral: true });
                 }
                 if (interaction.user.id === oyun.lobi[0]) {
-                    return interaction.reply({ content: "Oyun kurucu lobiden ayrılamaz, oyunu iptal etmek için botu yeniden başlatın.", ephemeral: true });
+                    return interaction.reply({ content: "Oyun kurucu lobiden ayrılamaz.", ephemeral: true });
                 }
                 oyun.lobi = oyun.lobi.filter(id => id !== interaction.user.id);
                 embed.setDescription(`**Oyun Kurucu:** <@${oyun.lobi[0]}>\n\n**Katılan Oyuncular (${oyun.lobi.length}):**\n${oyun.lobi.map(id => `<@${id}>`).join('\n')}`);
@@ -82,16 +92,15 @@ client.on('messageCreate', async (message) => {
         });
     }
 
-    // 🎮 .başlat - Rol Dağıtımı ve Oyunu Başlatma
+    // 🎮 .başlat
     if (cmd === 'başlat' || cmd === 'baslat') {
         if (!oyun.aktif || oyun.asama !== 'lobi') return message.reply("❌ Şu an başlatılacak bir lobi yok!");
         if (message.author.id !== oyun.lobi[0]) return message.reply("❌ Oyunu sadece lobi kurucusu başlatabilir!");
-        if (oyun.lobi.length < 4) return message.reply(`❌ Oyunu başlatmak için en az 4 kişi lazım! Şu anki kişi sayısı: \`${oyun.lobi.length}\``);
+        if (oyun.lobi.length < 4) return message.reply(`❌ En az 4 kişi lazım! Şu an: \`${oyun.lobi.length}\``);
 
         oyun.asama = 'gece';
         oyun.yasayanlar = [...oyun.lobi];
 
-        // Karıştır ve Rol Dağıt (Örn 4 kişide: 1 Vampir, 1 Doktor, 2 Köylü)
         let oyuncular = [...oyun.lobi].sort(() => Math.random() - 0.5);
         let vampirSayisi = Math.max(1, Math.floor(oyuncular.length / 4));
         let doktorSayisi = 1;
@@ -106,46 +115,42 @@ client.on('messageCreate', async (message) => {
                 oyun.roller[id] = 'Köylü';
             }
 
-            // DM Gönderimi
             try {
                 const user = await client.users.fetch(id);
-                let rolEmbed = new EmbedBuilder()
-                    .setTitle("🎭 Vampir Köylü Rolün Belli Oldu!")
-                    .setTimestamp();
+                let rolEmbed = new EmbedBuilder().setTitle("🎭 Rolün Belli Oldu!").setTimestamp();
 
                 if (oyun.roller[id] === 'Vampir') {
-                    rolEmbed.setColor(0xFF0000).setDescription("🔴 Rolün: **VAMPİR**\n\n**Amacın:** Köylüleri gizlice temizlemek. Gece aşamasında kanaldaki butonlardan kurbanını seç!");
+                    rolEmbed.setColor(0xFF0000).setDescription("🔴 Rolün: **VAMPİR**\n\nGece kanaldaki butonlardan kurbanını seç!");
                 } else if (oyun.roller[id] === 'Doktor') {
-                    rolEmbed.setColor(0x00FF00).setDescription("🟢 Rolün: **DOKTOR**\n\n**Amacın:** Vampirlerin öldüreceği kişiyi tahmin edip kurtarmak. Gece aşamasında birini koru!");
+                    rolEmbed.setColor(0x00FF00).setDescription("🟢 Rolün: **DOKTOR**\n\nGece birini koru!");
                 } else {
-                    rolEmbed.setColor(0x3498DB).setDescription("🔵 Rolün: **KÖYLÜ**\n\n**Amacın:** Gündüz tartışmalarında ipuçlarını toplayıp vampirleri asmak!");
+                    rolEmbed.setColor(0x3498DB).setDescription("🔵 Rolün: **KÖYLÜ**\n\nVampirleri bul ve as!");
                 }
                 await user.send({ embeds: [rolEmbed] });
             } catch (err) {
-                message.channel.send(`⚠️ <@${id}> kullanıcısının DM kutusu kapalı olduğu için rolü gönderilemedi!`);
+                message.channel.send(`⚠️ <@${id}> kullanıcısının DM'si kapalı!`);
             }
         }
 
-        message.channel.send("✨ **Roller gizlice DM üzerinden dağıtıldı!**\n🌙 **Gece çöküyor...** Herkes gözlerini kapatsın. Vampirler kurbanını seçiyor!");
+        message.channel.send("✨ **Roller dağıtıldı!**\n🌙 **Gece çöküyor...** Vampirler kurbanını seçiyor!");
         geceAsamasi(message.channel);
     }
 });
 
-// 🌙 GECE AŞAMASI (Vampirler Kurban Seçiyor)
 async function geceAsamasi(channel) {
     oyun.asama = 'gece';
     oyun.vampirOylari = {};
     
     const embed = new EmbedBuilder()
         .setTitle("🌙 Gece Oldu")
-        .setDescription("Vampirler gizlice kurbanını seçiyor. Yaşayan oyuncular aşağıda listelenmiştir. Vampirseniz gizlice kurbanınızı oylayın!")
+        .setDescription("Vampirler kurbanını oylasın.")
         .setColor(0x1F2023);
 
     const row = new ActionRowBuilder();
     let count = 0;
 
     oyun.yasayanlar.forEach(id => {
-        if (oyun.roller[id] !== 'Vampir' && count < 5) { // Buton sınırı 5'tir, ilk 5 köylüyü listeler
+        if (oyun.roller[id] !== 'Vampir' && count < 5) {
             row.addComponents(
                 new ButtonBuilder().setCustomId(`v_kill_${id}`).setLabel(`Öldür: ${client.users.cache.get(id)?.username || id}`).setStyle(ButtonStyle.Danger)
             );
@@ -154,24 +159,17 @@ async function geceAsamasi(channel) {
     });
 
     const geceMesaj = await channel.send({ embeds: [embed], components: row.components.length > 0 ? [row] : [] });
+    if (row.components.length === 0) return oyunBittiKontrol(channel);
 
-    if (row.components.length === 0) {
-        return oyunBittiKontrol(channel);
-    }
-
-    const collector = geceMesaj.createMessageComponentCollector({ componentType: ComponentType.Button, time: 30000 }); // 30 saniye gece süresi
-
+    const collector = geceMesaj.createMessageComponentCollector({ componentType: ComponentType.Button, time: 30000 });
     let secilenKurban = null;
 
-    collector.on('collection', async (interaction) => {
+    collector.on('collect', async (interaction) => {
         if (oyun.roller[interaction.user.id] !== 'Vampir') {
-            return interaction.reply({ content: "❌ Sen vampir değilsin, gece eylemi yapamazsın!", ephemeral: true });
+            return interaction.reply({ content: "❌ Vampir değilsin!", ephemeral: true });
         }
-        
-        const kurbanId = interaction.customId.replace('v_kill_', '');
-        secilenKurban = kurbanId;
-        
-        await interaction.reply({ content: `Kurban olarak <@${kurbanId}> seçildi!`, ephemeral: true });
+        secilenKurban = interaction.customId.replace('v_kill_', '');
+        await interaction.reply({ content: "Kurban seçildi!", ephemeral: true });
         collector.stop();
     });
 
@@ -181,25 +179,21 @@ async function geceAsamasi(channel) {
     });
 }
 
-// ☀️ GÜNDÜZ AŞAMASI (Tartışma ve Oylama)
 async function gunduzAsamasi(channel, kurbanId) {
     oyun.asama = 'gunduz';
-    
     if (kurbanId) {
         oyun.yasayanlar = oyun.yasayanlar.filter(id => id !== kurbanId);
-        channel.send(`☀️ **Gündüz oldu!**\n\n💀 Maalesef, bu gece <@${kurbanId}> vampirler tarafından hunharca katledildi!`);
+        channel.send(`☀️ **Gündüz oldu!**\n\n💀 <@${kurbanId}> öldürüldü!`);
     } else {
-        channel.send(`☀️ **Gündüz oldu!**\n\n🕊️ Şanslı bir gece! Dün gece kimse ölmedi.`);
+        channel.send(`☀️ **Gündüz oldu!**\n\n🕊️ Kimse ölmedi.`);
     }
 
     if (oyunBittiKontrol(channel)) return;
 
-    channel.send("🗣️ **Tartışma Süresi Başladı!** Kimin vampir olduğunu tartışın. 45 saniye sonra oylama başlayacak.");
+    channel.send("🗣️ **Tartışma ve Oylama Başladı!** 45 saniye sonra köy karar verecek.");
     
     setTimeout(async () => {
-        channel.send("⚖️ **Oylama Zamanı!** Köyden asılmasını istediğiniz şüpheliyi seçin!");
-        
-        const embed = new EmbedBuilder().setTitle("⚖️ Köy Oylaması").setDescription("Aşağıdaki butonlardan şüphelendiğiniz kişiyi seçin!").setColor(0xF1C40F);
+        const embed = new EmbedBuilder().setTitle("⚖️ Köy Oylaması").setDescription("Asılacak kişiyi seçin.").setColor(0xF1C40F);
         const row = new ActionRowBuilder();
         
         let count = 0;
@@ -212,63 +206,62 @@ async function gunduzAsamasi(channel, kurbanId) {
 
         const oyMesaj = await channel.send({ embeds: [embed], components: [row] });
         const oylar = {};
-
         const collector = oyMesaj.createMessageComponentCollector({ componentType: ComponentType.Button, time: 30000 });
 
-        collector.on('collection', async (interaction) => {
-            if (!oyun.yasayanlar.includes(interaction.user.id)) {
-                return interaction.reply({ content: "Ölüler veya oyunda olmayanlar oy kullanamaz!", ephemeral: true });
-            }
+        collector.on('collect', async (interaction) => {
+            if (!oyun.yasayanlar.includes(interaction.user.id)) return interaction.reply({ content: "Ölüler oy kullanamaz!", ephemeral: true });
             const asilacakId = interaction.customId.replace('k_as_', '');
             oylar[asilacakId] = (oylar[asilacakId] || 0) + 1;
-            await interaction.reply({ content: `<@${asilacakId}> kişisine oy verdiniz!`, ephemeral: true });
+            await interaction.reply({ content: "Oy kaydedildi!", ephemeral: true });
         });
 
         collector.on('end', () => {
             oyMesaj.delete().catch(() => {});
-            
             let enCokOyAlan = null;
             let maxOy = 0;
             
             for (const [id, oy] of Object.entries(oylar)) {
-                if (oy > maxOy) {
-                    maxOy = oy;
-                    enCokOyAlan = id;
-                }
+                if (oy > maxOy) { maxOy = oy; enCokOyAlan = id; }
             }
 
             if (enCokOyAlan) {
                 oyun.yasayanlar = oyun.yasayanlar.filter(id => id !== enCokOyAlan);
-                channel.send(`⚖️ Köy kararıyla <@${enCokOyAlan}> asıldı! Rolü: **${oyun.roller[enCokOyAlan]}** idi.`);
+                channel.send(`⚖️ Köy kararıyla <@${enCokOyAlan}> asıldı! Rolü: **${oyun.roller[enCokOyAlan]}**`);
             } else {
-                channel.send("⚖️ Beraberlik sağlandı veya kimse oy kullanmadı! Bugün kimse asılmadı.");
+                channel.send("⚖️ Kimse asılmadı.");
             }
 
             if (oyunBittiKontrol(channel)) return;
-
             channel.send("🌙 Yeniden gece oluyor...");
             setTimeout(() => geceAsamasi(channel), 5000);
         });
-
     }, 45000);
 }
 
-// 🏆 OYUN BİTTİ KONTROLÜ
 function oyunBittiKontrol(channel) {
     const vampirler = oyun.yasayanlar.filter(id => oyun.roller[id] === 'Vampir');
     const koyuler = oyun.yasayanlar.filter(id => oyun.roller[id] !== 'Vampir');
 
     if (vampirler.length === 0) {
-        channel.send("🎉 🏆 **KÖYLÜLER KAZANDI!** Tüm vampirler temizlendi!");
+        channel.send("🎉 **KÖYLÜLER KAZANDI!**");
         oyun.aktif = false;
         return true;
     }
     if (vampirler.length >= koyuler.length) {
-        channel.send("🩸 🏆 **VAMPİRLER KAZANDI!** Köyü tamamen ele geçirdiler!");
+        channel.send("🩸 **VAMPİRLER KAZANDI!**");
         oyun.aktif = false;
         return true;
     }
     return false;
 }
 
-client.login(process.env.DISCORD_TOKEN);
+// ⚠️ GÜVENLİ GİRİŞ KONTROLÜ (HATA YAPMAZ)
+const botTokeni = process.env.DISCORD_TOKEN;
+
+if (!botTokeni || botTokeni.trim() === "") {
+    console.error("❌ HATA: Railway Variables paneline 'DISCORD_TOKEN' eklenmemiş!");
+} else {
+    client.login(botTokeni.trim()).catch(err => {
+        console.error("❌ HATA: Yapıştırılan token kesinlikle GEÇERSİZ!", err.message);
+    });
+}
