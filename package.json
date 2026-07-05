@@ -1,16 +1,12 @@
 {
   "name": "kadro-rp-lig",
   "version": "1.0.0",
-  "description": "",
+  "description": "Vampir Koylu Botu",
   "main": "index.js",
   "scripts": {
     "start": "node index.js"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
   "dependencies": {
-    "discord.js": "^14.14.1",
-    "dotenv": "^16.4.5"
+    "discord.js": "^14.14.1"
   }
 }
