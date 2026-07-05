@@ -1,4 +1,3 @@
-
 const { Client, GatewayIntentBits, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, ComponentType } = require('discord.js');
 
 const client = new Client({
@@ -108,6 +107,6 @@ const botTokeni = process.env.DISCORD_TOKEN;
 if (!botTokeni) {
     console.error("❌ HATA: DISCORD_TOKEN bulunamadı!");
 } else {
-    client.login(bot
-                 Tokeni.trim());
-                                          }
+    client.login(botT
+                 okeni.trim());
+}
