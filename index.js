@@ -33,7 +33,9 @@ client.on('messageCreate', async (message) => {
 
     // ❌ .iptaloyun (Sadece Başlatan veya Yönetici Silebilir)
     if (cmd === 'iptaloyun') {
-        if (!oyun.aktif) return message.reply("❌ Zaten aktif bir oyun yok!");
+        if (!oyun.aktif) {
+            return message.reply("❌ Zaten aktif bir oyun yok!");
+        }
         
         const yetkiliMi = message.member.permissions.has('Administrator');
         const baslatanMi = message.author.id === oyun.lobi[0];
@@ -48,7 +50,9 @@ client.on('messageCreate', async (message) => {
 
     // 🚪 .vampirköylü / .vk
     if (cmd === 'vampirköylü' || cmd === 'vk') {
-        if (oyun.aktif) return message.reply("❌ Zaten devam eden bir oyun var!");
+        if (oyun.aktif) {
+            return message.reply("❌ Zaten devam eden bir oyun var!");
+        }
 
         oyun.aktif = true;
         oyun.lobi = [message.author.id];
@@ -70,14 +74,20 @@ client.on('messageCreate', async (message) => {
 
         collector.on('collect', async (interaction) => {
             if (interaction.customId === 'vk_katil') {
-                if (oyun.lobi.includes(interaction.user.id)) return interaction.reply({ content: "Zaten katılmışsın!", ephemeral: true });
+                if (oyun.lobi.includes(interaction.user.id)) {
+                    return interaction.reply({ content: "Zaten katılmışsın!", ephemeral: true });
+                }
                 oyun.lobi.push(interaction.user.id);
                 embed.setDescription(`**Oyun Kurucu:** <@${oyun.lobi[0]}>\n\n**Katılanlar (${oyun.lobi.length}):**\n${oyun.lobi.map(id => `<@${id}>`).join('\n')}`);
                 await interaction.update({ embeds: [embed] });
             }
             if (interaction.customId === 'vk_ayril') {
-                if (!oyun.lobi.includes(interaction.user.id)) return interaction.reply({ content: "Zaten lobide değilsin!", ephemeral: true });
-                if (interaction.user.id === oyun.lobi[0]) return interaction.reply({ content: "Kurucu ayrılamaz.", ephemeral: true });
+                if (!oyun.lobi.includes(interaction.user.id)) {
+                    return interaction.reply({ content: "Zaten lobide değilsin!", ephemeral: true });
+                }
+                if (interaction.user.id === oyun.lobi[0]) {
+                    return interaction.reply({ content: "Kurucu ayrılamaz.", ephemeral: true });
+                }
                 oyun.lobi = oyun.lobi.filter(id => id !== interaction.user.id);
                 embed.setDescription(`**Oyun Kurucu:** <@${oyun.lobi[0]}>\n\n**Katılanlar (${oyun.lobi.length}):**\n${oyun.lobi.map(id => `<@${id}>`).join('\n')}`);
                 await interaction.update({ embeds: [embed] });
@@ -87,9 +97,15 @@ client.on('messageCreate', async (message) => {
 
     // 🎮 .başlat
     if (cmd === 'başlat' || cmd === 'baslat') {
-        if (!oyun.aktif || oyun.asama !== 'lobi') return message.reply("❌ Şu an başlatılacak bir lobi yok!");
-        if (message.author.id !== oyun.lobi[0]) return message.reply("❌ Sadece kurucu başlatabilir!");
-        if (oyun.lobi.length < 4) return message.reply("❌ En az 4 kişi lazım!");
+        if (!oyun.aktif || oyun.asama !== 'lobi') {
+            return message.reply("❌ Şu an başlatılacak bir lobi yok!");
+        }
+        if (message.author.id !== oyun.lobi[0]) {
+            return message.reply("❌ Sadece kurucu başlatabilir!");
+        }
+        if (oyun.lobi.length < 4) {
+            return message.reply("❌ En az 4 kişi lazım!");
+        }
 
         oyun.asama = 'gece';
         oyun.yasayanlar = [...oyun.lobi];
@@ -97,7 +113,11 @@ client.on('messageCreate', async (message) => {
         let vampirSayisi = Math.max(1, Math.floor(oyuncular.length / 4));
 
         for (let i = 0; i < oyuncular.length; i++) {
-            oyun.roller[oyuncular[i]] = (i < vampirSayisi) ? 'Vampir' : 'Köylü';
+            if (i < vampirSayisi) {
+                oyun.roller[oyuncular[i]] = 'Vampir';
+            } else {
+                oyun.roller[oyuncular[i]] = 'Köylü';
+            }
         }
         message.channel.send("✨ **Roller dağıtıldı! Gece çöküyor...**");
     }
@@ -107,6 +127,5 @@ const botTokeni = process.env.DISCORD_TOKEN;
 if (!botTokeni) {
     console.error("❌ HATA: DISCORD_TOKEN bulunamadı!");
 } else {
-    client.login(botT
-                 okeni.trim());
+    client.login(botTokeni.trim());
 }
