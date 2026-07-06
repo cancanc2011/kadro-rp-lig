@@ -1,4 +1,4 @@
-const { Client, GatewayIntentBits, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, ComponentType } = require('discord.js');
+consconst { Client, GatewayIntentBits, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, ComponentType } = require('discord.js');
 
 const client = new Client({
     intents: [
@@ -281,12 +281,10 @@ async function gunduzAsamasi(channel, ölenler) {
     setTimeout(async () => {
         if (!oyun.aktif || oyun.asama !== 'gunduz') return;
 
-        // Anlık oyları tutmak için hafıza nesnesi
         const oylar = {};
         oyun.yasayanlar.forEach(id => oylar[id] = 0);
         oylar['skip'] = 0;
 
-        // Embed Açıklamasını Sayılı Gösteren Yardımcı Fonksiyon
         const buildDescription = () => {
             let desc = "Aşağıdaki butonları kullanarak şüphelendiğiniz kişiye dar ağacını gösterin ya da risk almayıp pas geçin.\n\n📊 **ANLIK OYLAMA DURUMU:**\n";
             oyun.yasayanlar.forEach(id => {
@@ -323,7 +321,6 @@ async function gunduzAsamasi(channel, ölenler) {
 
         const oyMesaj = await channel.send({ embeds: [oyEmbed], components: rows });
         
-        // Kimin kime oy verdiğini takip etmek için (mükerrer oy engeli)
         const kullaniciSecimi = {}; 
         const collector = oyMesaj.createMessageComponentCollector({ componentType: ComponentType.Button, time: 30000 });
 
@@ -339,16 +336,13 @@ async function gunduzAsamasi(channel, ölenler) {
                 return interaction.reply({ content: "Zaten bu seçeneğe oy vermişsin kanka!", ephemeral: true });
             }
 
-            // Eğer daha önce oy verdiyse eski oyunu düşür
             if (eskiSecim) {
                 oylar[eskiSecim] = Math.max(0, oylar[eskiSecim] - 1);
             }
 
-            // Yeni oyu ekle
             kullaniciSecimi[interaction.user.id] = secilen;
             oylar[secilen] = (oylar[secilen] || 0) + 1;
 
-            // Embed'i anlık sayı listesiyle güncelle
             oyEmbed.setDescription(buildDescription());
             await interaction.update({ embeds: [oyEmbed] });
         });
@@ -362,7 +356,6 @@ async function gunduzAsamasi(channel, ölenler) {
                 if (oy > max) { max = oy; lider = id; }
             }
 
-            // Eğer en yüksek oyda eşitlik varsa veya kimse oy kullanmadıysa lider boş kalır
             let esitlikVar = Object.values(oylar).filter(oy => oy === max && max > 0).length > 1;
 
             const sonucEmbed = new EmbedBuilder().setTitle("⚖️ Sandıklar Açıldı - Karar Vakti").setColor(0x130f40);
@@ -418,4 +411,4 @@ function oyunBittiKontrol(channel) {
     return false;
 }
 
-client.login(process.env.DISCORD_TOKEN
+client.login(process.env.DISCORD_TOKEN);
