@@ -32,7 +32,7 @@ client.on('messageCreate', async (message) => {
     const args = message.content.slice(1).trim().split(/ +/);
     const cmd = args.shift().toLowerCase();
 
-    // ❌ .iptaloyun - Sadece kuran veya Yönetici
+    // ❌ .iptaloyun
     if (cmd === 'iptaloyun') {
         if (!oyun.aktif) return message.reply("❌ Zaten aktif bir oyun yok!");
         
@@ -86,10 +86,10 @@ client.on('messageCreate', async (message) => {
                 embed.setDescription(`🎭 **Oyun Kurucu:** <@${oyun.lobi[0]}>\n\n**Katılanlar (${oyun.lobi.length}/10):**\n${oyun.lobi.map(id => `<@${id}>`).join('\n')}`);
                 await interaction.update({ embeds: [embed] });
             }
+      
         });
     }
-
-    // 🎮 .başlat
+        // 🎮 .başlat
     if (cmd === 'başlat' || cmd === 'baslat') {
         if (!oyun.aktif || oyun.asama !== 'lobi') return message.reply("❌ Ortada başlatılacak bir lobi yok kanka! Önce `.vk` yaz.");
         if (message.author.id !== oyun.lobi[0]) return message.reply("❌ Bu kasabayı sadece oyunu kuran lider başlatabilir!");
@@ -100,13 +100,11 @@ client.on('messageCreate', async (message) => {
         oyun.serifAtesEtti = false;
         let oyuncular = [...oyun.lobi].sort(() => Math.random() - 0.5);
         
-        // Rolleri adil dağıt
         oyun.roller[oyuncular[0]] = 'Vampir';
         oyun.roller[oyuncular[1]] = 'Doktor';
         oyun.roller[oyuncular[2]] = 'Şerif';
         for (let i = 3; i < oyuncular.length; i++) oyun.roller[oyuncular[i]] = 'Köylü';
 
-        // Kalite Mesajı: DM Rol Bildirimi
         for (const uid of oyun.lobi) {
             try {
                 const user = await client.users.fetch(uid);
@@ -139,15 +137,12 @@ client.on('messageCreate', async (message) => {
         geceAsamasi(message.channel);
     }
 });
-
-// 🌙 GECE SÜRECİ VE ÖZEL DM BUTONLARI
 async function geceAsamasi(channel) {
     oyun.asama = 'gece';
     oyun.vampirSecimi = null;
     oyun.doktorSecimi = null;
     oyun.serifSecimi = null;
 
-    // Discord Limitlerini Aşmayan Buton Yapıcı
     const generateButtons = (kullaniciRol) => {
         const rows = [];
         let currentRow = new ActionRowBuilder();
@@ -159,10 +154,7 @@ async function geceAsamasi(channel) {
                 currentRow = new ActionRowBuilder();
             }
             currentRow.addComponents(
-                new ButtonBuilder()
-                    .setCustomId(`dm_act_${id}`)
-                    .setLabel(`${client.users.cache.get(id)?.username || 'Oyuncu'}`)
-                    .setStyle(ButtonStyle.Secondary)
+                new ButtonBuilder().setCustomId(`dm_act_${id}`).setLabel(`${client.users.cache.get(id)?.username || 'Oyuncu'}`).setStyle(ButtonStyle.Secondary)
             );
             sayac++;
         });
@@ -173,7 +165,6 @@ async function geceAsamasi(channel) {
         return rows;
     };
 
-    // Şerif İçin Tetik Çekme Butonları
     const generateSerifShootButtons = () => {
         const rows = [];
         let currentRow = new ActionRowBuilder();
@@ -186,10 +177,7 @@ async function geceAsamasi(channel) {
                     currentRow = new ActionRowBuilder();
                 }
                 currentRow.addComponents(
-                    new ButtonBuilder()
-                        .setCustomId(`dm_shoot_${id}`)
-                        .setLabel(`🔥 VUR: ${client.users.cache.get(id)?.username}`)
-                        .setStyle(ButtonStyle.Danger)
+                    new ButtonBuilder().setCustomId(`dm_shoot_${id}`).setLabel(`🔥 VUR: ${client.users.cache.get(id)?.username}`).setStyle(ButtonStyle.Danger)
                 );
                 count++;
             }
@@ -272,7 +260,6 @@ async function geceAsamasi(channel) {
         }
     }
 
-    // Gece Sonu Hesaplaşmaları (40 Saniye Sonra)
     setTimeout(() => {
         let ölenler = [];
 
@@ -299,10 +286,8 @@ async function geceAsamasi(channel) {
     }, 40000);
 }
 
-// ☀️ GÜNDÜZ SÜRECİ VE HATASIZ OYLAMA SİSTEMİ
 async function gunduzAsamasi(channel, ölenler) {
     oyun.asama = 'gunduz';
-    
     let sabahEmbed = new EmbedBuilder().setTitle("☀️ Güneş Doğdu - Kasaba Meydanı").setColor(0xf1c40f);
 
     if (ölenler.length > 0) {
@@ -334,7 +319,6 @@ async function gunduzAsamasi(channel, ölenler) {
             .setDescription("Aşağıdaki butonları kullanarak şüphelendiğiniz kişiye dar ağacını gösterin ya da risk almayıp pas geçin.")
             .setColor(0x962d22);
         
-        // Butonlar 4'erli gruplanıyor (Maksimum buton düzeni hatasını çözer)
         const rows = [];
         let currentRow = new ActionRowBuilder();
         let sayac = 0;
@@ -394,12 +378,10 @@ async function gunduzAsamasi(channel, ölenler) {
     }, 45000);
 }
 
-// 🏆 KAZANMA DURUMU VE KİMLİK DEŞİFRE SİSTEMİ
 function oyunBittiKontrol(channel) {
     const vampirler = oyun.yasayanlar.filter(id => oyun.roller[id] === 'Vampir');
     const koyuler = oyun.yasayanlar.filter(id => oyun.roller[id] !== 'Vampir');
 
-    // Mükemmel Rol Listesi Çıktısı
     let rolOzeti = `\n\n🎭 **KASABADAKİ TÜM KİMLİKLERİN MASKESİ DÜŞTÜ:**\n`;
     oyun.lobi.forEach(id => {
         let durum = oyun.yasayanlar.includes(id) ? "🟢 Yaşıyor" : "💀 Ölmüş";
@@ -428,4 +410,5 @@ function oyunBittiKontrol(channel) {
     return false;
 }
 
-client.login(process.env.DISCORD_TOKEN
+client.login(process.env.DISCORD_TOKEN);
+
