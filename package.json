@@ -1,7 +1,7 @@
 {
   "name": "kadro-rp-lig",
   "version": "1.0.0",
-  "description": "Vampir Koylu Botu",
+  "description": "",
   "main": "index.js",
   "scripts": {
     "start": "node index.js"
