@@ -112,7 +112,7 @@ client.on('messageCreate', async (message) => {
                 const user = await client.users.fetch(uid);
                 const rol = oyun.roller[uid];
                 
-                let embedRenk = 0x3498db; // Köylü Mavi
+                let embedRenk = 0x3498db; 
                 let rolDetay = "Köyün huzurunu korumak için gündüzleri doğru kişiyi asmalısın!";
                 let rolGorsel = "🔵";
 
@@ -147,7 +147,7 @@ async function geceAsamasi(channel) {
     oyun.doktorSecimi = null;
     oyun.serifSecimi = null;
 
-    // Discord Limitlerini Aşmayan 5'li Buton Yapıcı
+    // Discord Limitlerini Aşmayan Buton Yapıcı
     const generateButtons = (kullaniciRol) => {
         const rows = [];
         let currentRow = new ActionRowBuilder();
@@ -260,7 +260,7 @@ async function geceAsamasi(channel) {
                 shootCollector.on('collect', async (sInteraction) => {
                     oyun.serifSecimi = sInteraction.customId.replace('dm_shoot_', '');
                     oyun.serifAtesEtti = true;
-                    await sInteraction.reply({ content: "🔥 TAYFALAR! Silah ateşlendi, sabaha her şey belli olacak." });
+                    await sInteraction.reply({ content: "🔥 Silah ateşlendi, sabaha her şey belli olacak." });
                     shootCollector.stop();
                     collector.stop();
                 });
@@ -279,11 +279,11 @@ async function geceAsamasi(channel) {
         if (oyun.serifSecimi && oyun.serifSecimi !== 'skip' && oyun.serifSecimi !== 'sorguladi') {
             const vurulan = oyun.serifSecimi;
             if (oyun.roller[vurulan] === 'Vampir') {
-                ölenler.push({ id: vurulan, sebep: "⭐ Şerif (Şef) karanlıkta sinsi bir siluet gördü ve mermiyi kafasına sıktı! Ölen bir Vampirdi." });
+                ölenler.push({ id: vurulan, sebep: "⭐ Şerif karanlıkta sinsi bir siluet gördü ve mermiyi sıktı! Ölen bir Vampirdi." });
                 oyun.vampirSecimi = null; 
             } else {
                 const serifId = oyun.lobi.find(id => oyun.roller[id] === 'Şerif');
-                if (serifId) ölenler.push({ id: serifId, sebep: "🚨 Şerif (Şef) masum bir köylüyü vurduğu için vicdan azabından can verdi!" });
+                if (serifId) ölenler.push({ id: serifId, sebep: "🚨 Şerif masum bir köylüyü vurduğu için vicdan azabından can verdi!" });
             }
         }
 
@@ -299,7 +299,7 @@ async function geceAsamasi(channel) {
     }, 40000);
 }
 
-// ☀️ GÜNDÜZ SÜRECİ VE HATASIZ 5'Lİ BUTONLU OYLAMA
+// ☀️ GÜNDÜZ SÜRECİ VE HATASIZ OYLAMA SİSTEMİ
 async function gunduzAsamasi(channel, ölenler) {
     oyun.asama = 'gunduz';
     
@@ -334,7 +334,7 @@ async function gunduzAsamasi(channel, ölenler) {
             .setDescription("Aşağıdaki butonları kullanarak şüphelendiğiniz kişiye dar ağacını gösterin ya da risk almayıp pas geçin.")
             .setColor(0x962d22);
         
-        // Tam Kesin Çözüm: Oylama Butonlarını 4'erli gruplayarak hata payını sıfırlıyoruz
+        // Butonlar 4'erli gruplanıyor (Maksimum buton düzeni hatasını çözer)
         const rows = [];
         let currentRow = new ActionRowBuilder();
         let sayac = 0;
@@ -351,7 +351,7 @@ async function gunduzAsamasi(channel, ölenler) {
         });
 
         if (currentRow.components.length >= 5) { rows.push(currentRow); currentRow = new ActionRowBuilder(); }
-        currentRow.addComponents(new ButtonBuilder().setCustomId('k_as_skip').setLabel('⏭️ Pas Geç (Oy Kullanma)').setStyle(ButtonStyle.Danger));
+        currentRow.addComponents(new ButtonBuilder().setCustomId('k_as_skip').setLabel('⏭️ Pas Geç').setStyle(ButtonStyle.Danger));
         rows.push(currentRow);
 
         const oyMesaj = await channel.send({ embeds: [oyEmbed], components: rows });
@@ -360,7 +360,7 @@ async function gunduzAsamasi(channel, ölenler) {
 
         collector.on('collect', async (interaction) => {
             if (!oyun.yasayanlar.includes(interaction.user.id)) {
-                return interaction.reply({ content: "❌ Mezardakiler kasaba siyasetine karışamaz (Ölüler oy kullanamaz)!", ephemeral: true });
+                return interaction.reply({ content: "❌ Ölüler oy kullanamaz!", ephemeral: true });
             }
             const secilen = interaction.customId.replace('k_as_', '');
             oylar[secilen] = (oylar[secilen] || 0) + 1;
@@ -411,4 +411,4 @@ function oyunBittiKontrol(channel) {
 
     if (vampirler.length === 0) {
         bitisEmbed.setTitle("🎉 🏆 KÖYLÜLER KAZANDI!")
-  
+            .setDescription(`Kasabayı tehdit eden tüm kan emiciler gün yüzüne çıkarıldı ve yok edildi! Güneş artık kasaba için
