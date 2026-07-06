@@ -86,10 +86,10 @@ client.on('messageCreate', async (message) => {
                 embed.setDescription(`🎭 **Oyun Kurucu:** <@${oyun.lobi[0]}>\n\n**Katılanlar (${oyun.lobi.length}/10):**\n${oyun.lobi.map(id => `<@${id}>`).join('\n')}`);
                 await interaction.update({ embeds: [embed] });
             }
-      
         });
     }
-        // 🎮 .başlat
+
+    // 🎮 .başlat
     if (cmd === 'başlat' || cmd === 'baslat') {
         if (!oyun.aktif || oyun.asama !== 'lobi') return message.reply("❌ Ortada başlatılacak bir lobi yok kanka! Önce `.vk` yaz.");
         if (message.author.id !== oyun.lobi[0]) return message.reply("❌ Bu kasabayı sadece oyunu kuran lider başlatabilir!");
@@ -137,6 +137,7 @@ client.on('messageCreate', async (message) => {
         geceAsamasi(message.channel);
     }
 });
+
 async function geceAsamasi(channel) {
     oyun.asama = 'gece';
     oyun.vampirSecimi = null;
@@ -162,27 +163,6 @@ async function geceAsamasi(channel) {
         if (currentRow.components.length >= 5) { rows.push(currentRow); currentRow = new ActionRowBuilder(); }
         currentRow.addComponents(new ButtonBuilder().setCustomId(`dm_act_skip`).setLabel('⏭️ Pas Geç').setStyle(ButtonStyle.Danger));
         rows.push(currentRow);
-        return rows;
-    };
-
-    const generateSerifShootButtons = () => {
-        const rows = [];
-        let currentRow = new ActionRowBuilder();
-        let count = 0;
-
-        oyun.yasayanlar.forEach((id) => {
-            if (oyun.roller[id] !== 'Şerif') {
-                if (count > 0 && count % 4 === 0) {
-                    rows.push(currentRow);
-                    currentRow = new ActionRowBuilder();
-                }
-                currentRow.addComponents(
-                    new ButtonBuilder().setCustomId(`dm_shoot_${id}`).setLabel(`🔥 VUR: ${client.users.cache.get(id)?.username}`).setStyle(ButtonStyle.Danger)
-                );
-                count++;
-            }
-        });
-        if (currentRow.components.length > 0) rows.push(currentRow);
         return rows;
     };
 
@@ -231,11 +211,16 @@ async function geceAsamasi(channel) {
                     const sonuc = (targetRol === 'Vampir') ? "🔴 TEHLİKELİ: O BİR VAMPİR!" : "🔵 TEMİZ: Masum bir köylü.";
                     oyun.serifSecimi = 'sorguladi';
 
-                    let sEmbed = new EmbedBuilder().setTitle("🔍 Gizli Soruşturma Raporu").setDescription(`<@${targetId}> analiz edildi:\n\n**Durum:** ${sonuc}`).setColor(0x34495e);
+                    let sEmbed = new EmbedBuilder()
+                        .setTitle("🔍 Gizli Soruşturma Raporu")
+                        .setDescription(`<@${targetId}> analiz edildi:\n\n**Durum:** ${sonuc}`)
+                        .setColor(0x34495e);
                     
                     if (!oyun.serifAtesEtti) {
-                        sEmbed.setDescription(`<@${targetId}> analiz edildi:\n\n**Durum:** ${sonuc}\n\n⚠️ **DİKKAT:** Namluda merminiz var. Bu el tetiği çekip bu kişiyi **SİLAHLA VURMAK** ister misiniz?\n*(Eğer masum birini vurursanız siz de ölürsünüz!)*`);
-                        await interaction.reply({ embeds: [sEmbed], components: generateSerifShootButtons() });
+                        const tekVurRow = new ActionRowBuilder().addComponents(
+                            new ButtonBuilder().setCustomId(`dm_shoot_${targetId}`).setLabel(`🔥 VUR: ${client.users.cache.get(targetId)?.username || 'Oyuncu'}`).setStyle(ButtonStyle.Danger)
+                        );
+                        await interaction.reply({ embeds: [sEmbed], components: [tekVurRow] });
                     } else {
                         await interaction.reply({ embeds: [sEmbed] });
                         collector.stop();
@@ -307,7 +292,7 @@ async function gunduzAsamasi(channel, ölenler) {
 
     const tartismaEmbed = new EmbedBuilder()
         .setTitle("🗣️ Tartışma Zamanı")
-        .setDescription("Şüphelerinizi dile getirin, ipuçlarını tartışın.\n⏱️ **Süre:** 45 Saniye sonra oylama sandığı kurulacak.")
+        .setDescription("Şüphelerinizi dile getirin, ipuçlarını tartışın.\n⏱️ **Olay:** Oylama yaklaştığı zaman gece vurulanlar/asılacaklar netleşecek, sandık 45 saniye sonra kurulur.")
         .setColor(0xe67e22);
     channel.send({ embeds: [tartismaEmbed] });
     
@@ -401,7 +386,7 @@ function oyunBittiKontrol(channel) {
     }
     if (vampirler.length >= koyuler.length) {
         bitisEmbed.setTitle("🩸 🏆 VAMPİRLER KAZANDI!")
-            .setDescription(`Vampirler kasaba nüfusunda mutlak üstünlüğü ele geçirdi. Kasaba sonsuz bir karanlığa mahkum oldu!${rolOzeti}`)
+            .setDescription(`Vampirler kasaba nüfumunda mutlak üstünlüğü ele geçirdi. Kasaba sonsuz bir karanlığa mahkum oldu!${rolOzeti}`)
             .setColor(0x990000);
         channel.send({ embeds: [bitisEmbed] });
         oyun.aktif = false;
@@ -411,4 +396,4 @@ function oyunBittiKontrol(channel) {
 }
 
 client.login(process.env.DISCORD_TOKEN);
-
+                
