@@ -1,4 +1,10 @@
-consconst { Client, GatewayIntentBits, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, ComponentType } = require('discord.js');
+
+const const { Client, GatewayIntentBits, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, ComponentType } = require('discord.js');
+
+// 🔍 TOKEN KONTROLÜ (Railway loglarında hatayı net görmek için)
+if (!process.env.DISCORD_TOKEN || process.env.DISCORD_TOKEN.trim() === "") {
+    console.error("❌❌ HATA: DISCORD_TOKEN bulunamadı veya boş! Lütfen Railway panelinden 'Variables' sekmesine girip DISCORD_TOKEN ekleyin.");
+}
 
 const client = new Client({
     intents: [
