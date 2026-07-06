@@ -115,8 +115,8 @@ client.on('messageCreate', async (message) => {
                 let rolGorsel = "🔵";
 
                 if (rol === 'Vampir') { embedRenk = 0xe74c3c; rolDetay = "Sinsice hareket et, geceleri köyü avla ve hayatta kal!"; rolGorsel = "🔴"; }
-                else if (rol === 'Doktor') { embedRenk = 0x2ecc71; rolDetay = "Her gece köy halkından (veya kendinden) birini ölümden kurtar!"; rolGorsel = "🩺"; }
-                else if (rol === 'Şerif') { embedRenk = 0xf1c40f; rolDetay = "Geceleri insanları sorgula. Eğer çok eminsen tetiği çekip vur!"; rolGorsel = "⭐"; }
+                else if (rol === 'Doktor') { embedRenk = 0x2ecc71; rolDetay = "Her gece köy halkından birini ölümden kurtar!"; rolGorsel = "🩺"; }
+                else if (rol === 'Şerif') { embedRenk = 0xf1c40f; rolDetay = "Geceleri namlunu şüphelendiğin birine doğrult ve tetiği çek! (Rapor alamazsın, direkt vurursun)"; rolGorsel = "⭐"; }
 
                 const dmEmbed = new EmbedBuilder()
                     .setTitle(`${rolGorsel} GİZLİ KİMLİĞİNİZ BELİRLENDİ`)
@@ -154,8 +154,12 @@ async function geceAsamasi(channel) {
                 rows.push(currentRow);
                 currentRow = new ActionRowBuilder();
             }
+            
+            let prefix = kullaniciRol === 'Şerif' ? '🔥 Vur: ' : '';
+            let labelText = `${prefix}${client.users.cache.get(id)?.username || 'Oyuncu'}`;
+
             currentRow.addComponents(
-                new ButtonBuilder().setCustomId(`dm_act_${id}`).setLabel(`${client.users.cache.get(id)?.username || 'Oyuncu'}`).setStyle(ButtonStyle.Secondary)
+                new ButtonBuilder().setCustomId(`dm_act_${id}`).setLabel(labelText).setStyle(kullaniciRol === 'Şerif' ? ButtonStyle.Danger : ButtonStyle.Secondary)
             );
             sayac++;
         });
@@ -176,7 +180,7 @@ async function geceAsamasi(channel) {
             
             if (rol === 'Vampir') embed.setTitle("🩸 Gecenin Avı").setDescription("Bu gece hangi masum köylünün kanını emmek istersin?").setColor(0x990000);
             if (rol === 'Doktor') embed.setTitle("🩺 Şifa Zamanı").setDescription("Bu gece ölümün kıyısından kimi kurtaracaksın?").setColor(0x2ecc71);
-            if (rol === 'Şerif') embed.setTitle("🔍 Adalet Arayışı").setDescription("Kimin maskesini düşürmek, kimliğini öğrenmek istersin?").setColor(0xf1c40f);
+            if (rol === 'Şerif') embed.setTitle("🔫 Namlu Ucunda").setDescription("Kimi vurmak istiyorsun? Unutma, rapor yok! Masumu vurursan sen de ölürsün.").setColor(0xf1c40f);
 
             const dmMessage = await user.send({ embeds: [embed], components: generateButtons(rol) });
             const collector = dmMessage.createMessageComponentCollector({ componentType: ComponentType.Button, time: 35000 });
@@ -207,37 +211,12 @@ async function geceAsamasi(channel) {
                     collector.stop();
                 } 
                 else if (rol === 'Şerif') {
-                    const targetRol = oyun.roller[targetId];
-                    const sonuc = (targetRol === 'Vampir') ? "🔴 TEHLİKELİ: O BİR VAMPİR!" : "🔵 TEMİZ: Masum bir köylü.";
-                    oyun.serifSecimi = 'sorguladi';
-
-                    let sEmbed = new EmbedBuilder()
-                        .setTitle("🔍 Gizli Soruşturma Raporu")
-                        .setDescription(`<@${targetId}> analiz edildi:\n\n**Durum:** ${sonuc}`)
-                        .setColor(0x34495e);
-                    
-                    if (!oyun.serifAtesEtti) {
-                        const tekVurRow = new ActionRowBuilder().addComponents(
-                            new ButtonBuilder().setCustomId(`dm_shoot_${targetId}`).setLabel(`🔥 VUR: ${client.users.cache.get(targetId)?.username || 'Oyuncu'}`).setStyle(ButtonStyle.Danger)
-                        );
-                        await interaction.reply({ embeds: [sEmbed], components: [tekVurRow] });
-                    } else {
-                        await interaction.reply({ embeds: [sEmbed] });
-                        collector.stop();
-                    }
+                    oyun.serifSecimi = targetId;
+                    oyun.serifAtesEtti = true;
+                    await interaction.reply({ content: "🔥 Karanlığa doğru tetiği çektin! Rapor yok, sabaha her şey belli olacak." });
+                    collector.stop();
                 }
             });
-
-            if (rol === 'Şerif') {
-                const shootCollector = dmMessage.createMessageComponentCollector({ filter: i => i.customId.startsWith('dm_shoot_'), time: 35000 });
-                shootCollector.on('collect', async (sInteraction) => {
-                    oyun.serifSecimi = sInteraction.customId.replace('dm_shoot_', '');
-                    oyun.serifAtesEtti = true;
-                    await sInteraction.reply({ content: "🔥 Silah ateşlendi, sabaha her şey belli olacak." });
-                    shootCollector.stop();
-                    collector.stop();
-                });
-            }
 
             collector.on('end', () => { dmMessage.delete().catch(() => {}); });
         } catch (e) {
@@ -248,14 +227,17 @@ async function geceAsamasi(channel) {
     setTimeout(() => {
         let ölenler = [];
 
-        if (oyun.serifSecimi && oyun.serifSecimi !== 'skip' && oyun.serifSecimi !== 'sorguladi') {
+        if (oyun.serifSecimi && oyun.serifSecimi !== 'skip') {
             const vurulan = oyun.serifSecimi;
             if (oyun.roller[vurulan] === 'Vampir') {
-                ölenler.push({ id: vurulan, sebep: "⭐ Şerif karanlıkta sinsi bir siluet gördü ve mermiyi sıktı! Ölen bir Vampirdi." });
-                oyun.vampirSecimi = null; 
+                ölenler.push({ id: vurulan, sebep: "⭐ Şerif karanlıkta sinsi bir siluet gördü ve gözünü kırpmadan tetiği çekti! Ölen bir Vampirdi." });
+                if (oyun.vampirSecimi === vurulan) oyun.vampirSecimi = null;
             } else {
+                ölenler.push({ id: vurulan, sebep: "🚨 Şerif karanlıkta yanlış kişiyi hedef aldı ve namlusundan çıkan mermiyle bir masum can verdi!" });
                 const serifId = oyun.lobi.find(id => oyun.roller[id] === 'Şerif');
-                if (serifId) ölenler.push({ id: serifId, sebep: "🚨 Şerif masum bir köylüyü vurduğu için vicdan azabından can verdi!" });
+                if (serifId && oyun.yasayanlar.includes(serifId)) {
+                    ölenler.push({ id: serifId, sebep: "💔 Şerif masum birini vurduğunu fark edince vicdan azabından can verdi!" });
+                }
             }
         }
 
@@ -292,16 +274,32 @@ async function gunduzAsamasi(channel, ölenler) {
 
     const tartismaEmbed = new EmbedBuilder()
         .setTitle("🗣️ Tartışma Zamanı")
-        .setDescription("Şüphelerinizi dile getirin, ipuçlarını tartışın.\n⏱️ **Olay:** Oylama yaklaştığı zaman gece vurulanlar/asılacaklar netleşecek, sandık 45 saniye sonra kurulur.")
+        .setDescription("Şüphelerinizi dile getirin, ipuçlarını tartışın.\n⏱️ Sandık 45 saniye sonra kurulacaktır.")
         .setColor(0xe67e22);
     channel.send({ embeds: [tartismaEmbed] });
     
     setTimeout(async () => {
         if (!oyun.aktif || oyun.asama !== 'gunduz') return;
 
+        // Anlık oyları tutmak için hafıza nesnesi
+        const oylar = {};
+        oyun.yasayanlar.forEach(id => oylar[id] = 0);
+        oylar['skip'] = 0;
+
+        // Embed Açıklamasını Sayılı Gösteren Yardımcı Fonksiyon
+        const buildDescription = () => {
+            let desc = "Aşağıdaki butonları kullanarak şüphelendiğiniz kişiye dar ağacını gösterin ya da risk almayıp pas geçin.\n\n📊 **ANLIK OYLAMA DURUMU:**\n";
+            oyun.yasayanlar.forEach(id => {
+                const uName = client.users.cache.get(id)?.username || 'Oyuncu';
+                desc += `👤 **${uName}**: \`${oylar[id]} Oy\`\n`;
+            });
+            desc += `⏭️ **Pas Geç**: \`${oylar['skip']} Oy\``;
+            return desc;
+        };
+
         const oyEmbed = new EmbedBuilder()
             .setTitle("⚖️ Büyük İdam Sandığı Kuruldu")
-            .setDescription("Aşağıdaki butonları kullanarak şüphelendiğiniz kişiye dar ağacını gösterin ya da risk almayıp pas geçin.")
+            .setDescription(buildDescription())
             .setColor(0x962d22);
         
         const rows = [];
@@ -324,16 +322,35 @@ async function gunduzAsamasi(channel, ölenler) {
         rows.push(currentRow);
 
         const oyMesaj = await channel.send({ embeds: [oyEmbed], components: rows });
-        const oylar = {};
+        
+        // Kimin kime oy verdiğini takip etmek için (mükerrer oy engeli)
+        const kullaniciSecimi = {}; 
         const collector = oyMesaj.createMessageComponentCollector({ componentType: ComponentType.Button, time: 30000 });
 
         collector.on('collect', async (interaction) => {
             if (!oyun.yasayanlar.includes(interaction.user.id)) {
                 return interaction.reply({ content: "❌ Ölüler oy kullanamaz!", ephemeral: true });
             }
+
             const secilen = interaction.customId.replace('k_as_', '');
+            const eskiSecim = kullaniciSecimi[interaction.user.id];
+
+            if (eskiSecim === secilen) {
+                return interaction.reply({ content: "Zaten bu seçeneğe oy vermişsin kanka!", ephemeral: true });
+            }
+
+            // Eğer daha önce oy verdiyse eski oyunu düşür
+            if (eskiSecim) {
+                oylar[eskiSecim] = Math.max(0, oylar[eskiSecim] - 1);
+            }
+
+            // Yeni oyu ekle
+            kullaniciSecimi[interaction.user.id] = secilen;
             oylar[secilen] = (oylar[secilen] || 0) + 1;
-            await interaction.reply({ content: "📥 Oyunuz gizli sandığa başarıyla atıldı.", ephemeral: true });
+
+            // Embed'i anlık sayı listesiyle güncelle
+            oyEmbed.setDescription(buildDescription());
+            await interaction.update({ embeds: [oyEmbed] });
         });
 
         collector.on('end', () => {
@@ -345,14 +362,20 @@ async function gunduzAsamasi(channel, ölenler) {
                 if (oy > max) { max = oy; lider = id; }
             }
 
+            // Eğer en yüksek oyda eşitlik varsa veya kimse oy kullanmadıysa lider boş kalır
+            let esitlikVar = Object.values(oylar).filter(oy => oy === max && max > 0).length > 1;
+
             const sonucEmbed = new EmbedBuilder().setTitle("⚖️ Sandıklar Açıldı - Karar Vakti").setColor(0x130f40);
 
-            if (lider && lider !== 'skip') {
+            if (lider && lider !== 'skip' && !esitlikVar && max > 0) {
                 oyun.yasayanlar = oyun.yasayanlar.filter(id => id !== lider);
-                sonucEmbed.setDescription(`🏛️ Kasaba halkının çoğunluk oyuyla <@${lider}> ipe gönderildi!\n\n🎭 **Kefeni Açıldığında Rolü Görüldü:** \`${oyun.roller[lider]}\``);
+                sonucEmbed.setDescription(`🏛️ Kasaba halkının çoğunluk oyuyla (\`${max} Oy\`) <@${lider}> ipe gönderildi!\n\n🎭 **Kefeni Açıldığında Rolü Görüldü:** \`${oyun.roller[lider]}\``);
+                channel.send({ embeds: [sonucEmbed] });
+            } else if (esitlikVar) {
+                sonucEmbed.setDescription("⚖️ Oylarda eşitlik çıktı! Kasaba halkı kararsız kaldığı için bu el kimse asılmadı.").setColor(0x7f8c8d);
                 channel.send({ embeds: [sonucEmbed] });
             } else {
-                sonucEmbed.setDescription("⚖️ Kasabada ortak bir karara varılamadı veya çoğunluk pas geçilmesini istedi. Bu el kimse asılmadı.").setColor(0x7f8c8d);
+                sonucEmbed.setDescription("⚖️ Kasabada çoğunluk pas geçilmesini istedi veya hiç oy kullanılmadı. Bu el kimse asılmadı.").setColor(0x7f8c8d);
                 channel.send({ embeds: [sonucEmbed] });
             }
 
@@ -386,7 +409,7 @@ function oyunBittiKontrol(channel) {
     }
     if (vampirler.length >= koyuler.length) {
         bitisEmbed.setTitle("🩸 🏆 VAMPİRLER KAZANDI!")
-            .setDescription(`Vampirler kasaba nüfumunda mutlak üstünlüğü ele geçirdi. Kasaba sonsuz bir karanlığa mahkum oldu!${rolOzeti}`)
+            .setDescription(`Vampirler kasaba nüfusunda mutlak üstünlüğü ele geçirdi. Kasaba sonsuz bir karanlığa mahkum oldu!${rolOzeti}`)
             .setColor(0x990000);
         channel.send({ embeds: [bitisEmbed] });
         oyun.aktif = false;
@@ -395,5 +418,4 @@ function oyunBittiKontrol(channel) {
     return false;
 }
 
-client.login(process.env.DISCORD_TOKEN);
-                
+client.login(process.env.DISCORD_TOKEN
