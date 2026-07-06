@@ -411,4 +411,21 @@ function oyunBittiKontrol(channel) {
 
     if (vampirler.length === 0) {
         bitisEmbed.setTitle("🎉 🏆 KÖYLÜLER KAZANDI!")
-            .setDescription(`Kasabayı tehdit eden tüm kan emiciler gün yüzüne çıkarıldı ve yok edildi! Güneş artık kasaba için
+            .setDescription(`Kasabayı tehdit eden tüm kan emiciler gün yüzüne çıkarıldı ve yok edildi! Güneş artık kasaba için parlıyor.${rolOzeti}`)
+            .setColor(0x2ecc71);
+        channel.send({ embeds: [bitisEmbed] });
+        oyun.aktif = false;
+        return true;
+    }
+    if (vampirler.length >= koyuler.length) {
+        bitisEmbed.setTitle("🩸 🏆 VAMPİRLER KAZANDI!")
+            .setDescription(`Vampirler kasaba nüfusunda mutlak üstünlüğü ele geçirdi. Kasaba sonsuz bir karanlığa mahkum oldu!${rolOzeti}`)
+            .setColor(0x990000);
+        channel.send({ embeds: [bitisEmbed] });
+        oyun.aktif = false;
+        return true;
+    }
+    return false;
+}
+
+client.login(process.env.DISCORD_TOKEN
