@@ -35,6 +35,14 @@ client.once('ready', () => {
     console.log(`${client.user.tag} aktif ve derbiye hazır!`);
 });
 
+// Yardımcı Fonksiyon: Rastgele Oyuncu Seçimi
+const oyuncuSec = (takimKey, varsayilanIsim) => {
+    const tk = takimlar.get(takimKey);
+    if (!tk || !tk.ilk11 || tk.ilk11.length === 0) return varsayilanIsim;
+    const secilen = tk.ilk11[Math.floor(Math.random() * tk.ilk11.length)];
+    return secilen.isim;
+};
+
 client.on('messageCreate', async (message) => {
     if (message.author.bot) return;
 
@@ -214,21 +222,20 @@ client.on('messageCreate', async (message) => {
         if (!takim1 || !takim2) return message.reply('Maçı başlatmak için iki takımın da kurulmuş olması gerekir!');
 
         const macKey = `${t1Isim}_${t2Isim}`;
+        const fullKey = `${message.channel.id}_${macKey}`;
 
-        for (const [id, m] of aktifMaclar.entries()) {
-            if (m.key === macKey) return message.reply('⚠️ Bu iki takım arasında zaten devam eden bir maç var!');
-        }
+        if (aktifMaclar.has(fullKey)) return message.reply('⚠️ Bu kanalda zaten devam eden bir maç var!');
 
         const embed = new EmbedBuilder()
             .setTitle('🏟️ BÜYÜK DERBİ HEYECANI BAŞLIYOR!')
-            .setDescription(`⚽ **${takim1.isim}** vs **${takim2.isim}**\n\nMaç süresi **5 saniyede bir** akacak! VAR incelemeleri, kavgalar ve anlık top kontrolü aktif!`)
+            .setDescription(`⚽ **${takim1.isim}** vs **${takim2.isim}**\n\nMaç süresi **5 saniyede bir** akacak! VAR, Kırmızı Kart ve Penaltı Fırtınası Başlıyor!`)
             .setColor('#e74c3c');
 
         const row = new ActionRowBuilder().addComponents(
-            new ButtonBuilder().setCustomId(`baslat_${t1Isim}_${t2Isim}_${message.channel.id}`).setLabel('🚀 Derbiyi Başlat').setStyle(ButtonStyle.Danger)
+            new ButtonBuilder().setCustomId(`baslat_${macKey}`).setLabel('🚀 Derbiyi Başlat').setStyle(ButtonStyle.Danger)
         );
 
-        aktifMaclar.set(message.channel.id + "_" + macKey, {
+        aktifMaclar.set(fullKey, {
             key: macKey,
             t1Key: t1Isim,
             t2Key: t2Isim,
@@ -258,230 +265,236 @@ client.on('messageCreate', async (message) => {
 
         const t1Isim = bol[0].trim().toLowerCase();
         const t2Isim = bol[1].trim().toLowerCase();
-        const brassMacKey = `${t1Isim}_${t2Isim}`;
+        const fullKey = `${message.channel.id}_${t1Isim}_${t2Isim}`;
 
-        let bulunanMacId = null;
-        let bulunanMac = null;
-
-        aktifMaclar.forEach((mac, id) => {
-            if (mac.key === brassMacKey) {
-                bulunanMacId = id;
-                bulunanMac = mac;
-            }
-        });
-
-        if (!bulunanMac) return message.reply('⚠️ Aktif maç bulunamadı.');
+        const bulunanMac = aktifMaclar.get(fullKey);
+        if (!bulunanMac) return message.reply('⚠️ Bu kanalda aktif maç bulunamadı.');
 
         if (bulunanMac.intervalId) clearInterval(bulunanMac.intervalId);
-        aktifMaclar.delete(bulunanMacId);
+        aktifMaclar.delete(fullKey);
 
         message.reply(`🛑 **${bulunanMac.t1} vs ${bulunanMac.t2}** maçı durduruldu!`);
     }
 });
 
 // ==========================================
-// 🎛️ 5 SANİYELİK ULTRA HEYECAN HIZ MOTORU
+// 🎛️ POZİSYON OYNATMA VE KAOS MOTORU
+// ==========================================
+const pozisyonOynat = (fullKey, channel) => {
+    const guncelMac = aktifMaclar.get(fullKey);
+    if (!guncelMac) return false;
+
+    let displayDakika = "";
+
+    // --- SÜRE VE DEVRE ARASI KONTROLÜ ---
+    if (guncelMac.durum === 'ILK_YARI') {
+        guncelMac.dakika += 3;
+        if (guncelMac.dakika >= 45) {
+            guncelMac.dakika = 45;
+            guncelMac.durum = 'DEVRE_ARASI';
+            clearInterval(guncelMac.intervalId);
+
+            const devreEmbed = new EmbedBuilder()
+                .setTitle('⏸️ İLK YARI SONA ERDİ')
+                .setDescription(`🏟️ **Skor:** **${guncelMac.t1} ${guncelMac.skor1} - ${guncelMac.skor2} ${guncelMac.t2}**\n\nİlk yarı bitti! İkinci yarıyı başlatmak için aşağıdaki butona basın!`)
+                .setColor('#34495e');
+
+            const row = new ActionRowBuilder().addComponents(
+                new ButtonBuilder().setCustomId(`devam_${guncelMac.key}`).setLabel('▶️ 2. Yarıyı Başlat').setStyle(ButtonStyle.Success)
+            );
+
+            if (channel) channel.send({ embeds: [devreEmbed], components: [row] });
+            return false;
+        }
+        displayDakika = `${guncelMac.dakika}'`;
+    } else if (guncelMac.durum === 'IKINCI_YARI') {
+        guncelMac.dakika += 3;
+        if (guncelMac.dakika >= 90) {
+            guncelMac.dakika = 90;
+            displayDakika = "90+4'";
+        } else {
+            displayDakika = `${guncelMac.dakika}'`;
+        }
+    }
+
+    const atakYapanTakimKey = guncelMac.topSahibiTakim === "t1" ? guncelMac.t1Key : guncelMac.t2Key;
+    const savunmaTakimKey = guncelMac.topSahibiTakim === "t1" ? guncelMac.t2Key : guncelMac.t1Key;
+
+    const tkAtak = takimlar.get(atakYapanTakimKey);
+    const tkSavunma = takimlar.get(savunmaTakimKey);
+
+    const mevcutOyuncu = guncelMac.topSahibi;
+    const pasAlacakOyuncu = oyuncuSec(atakYapanTakimKey, `**Takım Arkadaşı**`);
+    const defansOyuncusu = oyuncuSec(savunmaTakimKey, `**Rakip Defans**`);
+
+    // --- 🗣️ ÇILGIN TARAFTAR YORUMLARI ---
+    const taraftarYorumlari = [
+        "🏟️ Stadyum adeta yıkılıyor, izleyiciler bu maça BAYILDI!",
+        "🔥 Tribünler ayakta! Müthiş bir seyir zevki var!",
+        "👏 Seyirciler harika futbol resitali karşısında avuçları patlayana kadar alkışlıyor!",
+        "🤯 Ekran başındakiler ve tribündekiler heyecandan tırnaklarını yiyor!"
+    ];
+    const anlikTaraftar = taraftarYorumlari[Math.floor(Math.random() * taraftarYorumlari.length)];
+
+    // --- 🩹 SAKATLIK VE DEĞİŞİKLİK (%6 İhtimal) ---
+    if (Math.random() < 0.06 && tkAtak && tkAtak.ilk11.length > 0 && tkAtak.yedekler.length > 0) {
+        const rIndex = Math.floor(Math.random() * tkAtak.ilk11.length);
+        const sakatlanan = tkAtak.ilk11[rIndex];
+        const giren = tkAtak.yedekler.shift();
+
+        tkAtak.ilk11[rIndex] = giren;
+        guncelMac.topSahibi = giren.isim;
+
+        const sakatlikEmbed = new EmbedBuilder()
+            .setTitle(`🏥 SAKATLIK! OYUN DURDU | Dakika: ${displayDakika}`)
+            .setDescription(`🚨 **Sakatlık Anı!** **${sakatlanan.isim}** yerde kaldı! Sedye sahada.\n\n🔻 **Çıkan:** ${sakatlanan.isim}\n🔺 **Giren:** ${giren.isim} [${giren.mevki}]`)
+            .setColor('#e67e22');
+        if (channel) channel.send({ embeds: [sakatlikEmbed] });
+        return true;
+    }
+
+    // --- 👊 TARAFTAR VE OYUNCU KAVGALARI (%10 İhtimal - BUTONLU DURDURMA) ---
+    if (Math.random() < 0.10) {
+        clearInterval(guncelMac.intervalId);
+        guncelMac.durum = 'KAVGA_VAR';
+
+        const kavgaEmbed = new EmbedBuilder()
+            .setTitle(`💥 ORTALIK KARIŞTI! SAHA SAVAŞ ALANI | Dakika: ${displayDakika}`)
+            .setDescription(`🥊 **KAVGA!** **${mevcutOyuncu}** ve **${defansOyuncusu}** tekmelerle birbirine girdi! Taraftarlar sahaya atlıyor, maç tamamen durdu! Müdahale gerekiyor!`)
+            .setColor('#7f8c8d');
+
+        const row = new ActionRowBuilder().addComponents(
+            new ButtonBuilder().setCustomId(`polis_${guncelMac.key}`).setLabel('👮 Polisleri Sahaya Çağır (Kavgayı Ayır)').setStyle(ButtonStyle.Danger)
+        );
+
+        if (channel) channel.send({ embeds: [kavgaEmbed], components: [row] });
+        return false;
+    }
+
+    // --- ⚽ FUTBOL VARYASYONLARI (PENALTI VE KIRMIZI ABARTILDI) ---
+    const aksiyonlar = [
+        { tip: "KISA_PAS", metin: `⚽ **${mevcutOyuncu}** pasını yakınındaki **${pasAlacakOyuncu}**'ya aktardı, kısa paslarla çıkıyorlar.`, yeniTopcu: pasAlacakOyuncu, takimDegissinMi: false },
+        { tip: "UZUN_PAS", metin: `🚀 **${mevcutOyuncu}** savunmanın arkasına çok **Uzun bir Pas** gönderdi, **${pasAlacakOyuncu}** göğsüyle kontrol etti!`, yeniTopcu: pasAlacakOyuncu, takimDegissinMi: false },
+        { tip: "CALIM", metin: `⚡ Muhteşem çalım! **${mevcutOyuncu}**, rakibi **${defansOyuncusu}**'nu enfes bir bacak arası **Çalımla** geçti!`, yeniTopcu: mevcutOyuncu, takimDegissinMi: false },
+        { tip: "ORTA_ACTI", metin: `📐 **${mevcutOyuncu}** sağ kanattan ceza sahasına doğru harika bir **Orta Açtı**, içeride karambol var!`, yeniTopcu: pasAlacakOyuncu, takimDegissinMi: false },
+        { tip: "AUT", metin: `💨 **${mevcutOyuncu}** sert vurdu ama top üstten **Dışarı (Auta)** gitti. Oyun rakip kaleciden başlayacak.`, yeniTopcu: oyuncuSec(savunmaTakimKey, "Kaleci"), takimDegissinMi: true },
+        { tip: "SERBEST_VURUS", metin: `🎯 **DIREKT SERBEST VURUŞ GOLÜ!** Ceza sahası dışından **${mevcutOyuncu}** barajın üstünden muhteşem vurdu ve top çatalda! Seyirciler ayakta alkışlıyor!`, yeniTopcu: oyuncuSec(savunmaTakimKey, "Rakip"), takimDegissinMi: true, gol: true },
+        { tip: "EL", metin: `🖐️ Düdük çaldı! **${defansOyuncusu}** topu elle kesti. Hakem **Elle Oynama (El)** kararı verdi!`, yeniTopcu: mevcutOyuncu, takimDegissinMi: false },
+        
+        // ABARTILI KART VE PENALTI İHTİMALLERİ (Havuzda oranları artsın diye fazla eklendi)
+        { tip: "PENALTI", pTipi: "VAR_PENALTI", metin: `🚨 **VAR KONTROLLÜ PENALTI!** **${mevcutOyuncu}** ceza sahasında uçarak indirildi! Hakem ekrana gitti ve **BEYAZ NOKTAYI GÖSTERDİ!**`, yeniTopcu: mevcutOyuncu, takimDegissinMi: false },
+        { tip: "PENALTI", pTipi: "DIREKT_PENALTI", metin: `🚨 **BEYAZ NOKTA!** Savunma oyuncusu **${defansOyuncusu}** arkadan çok sert kaydı, Hakem tereddütsüz **PENALTI** noktasını gösterdi!`, yeniTopcu: mevcutOyuncu, takimDegissinMi: false },
+        { tip: "KIRMIZI_KART", metin: `🟥 **VAR UYARISIYLA DİREKT KIRMIZI KART!** **${defansOyuncusu}** arkadan bileğe bastı! Hakem VAR ekranını izledi ve tereddütsüz **KIRMIZI KARTINI ÇIKARDI!**`, yeniTopcu: mevcutOyuncu, takimDegissinMi: false },
+        { tip: "KIRMIZI_KART", metin: `🟥 **İKİNCİ SARI VE KIRMIZI!** **${defansOyuncusu}** sert müdahale sonrası ikinci sarı karttan **KIRMIZI KART** ile oyun dışı kaldı!`, yeniTopcu: mevcutOyuncu, takimDegissinMi: false },
+        { tip: "GOL", metin: `🥅 **GOOOL!** **${mevcutOyuncu}** kaleciyle karşı karşıya pozisyonda topu ağlarla buluşturdu!`, yeniTopcu: oyuncuSec(savunmaTakimKey, "Rakip"), takimDegissinMi: true, gol: true },
+        { tip: "KAPTI", metin: `🛑 Araya giren defans! **${mevcutOyuncu}** çalım denerken **${defansOyuncusu}** topu temiz bir müdahaleyle söktü aldı!`, yeniTopcu: defansOyuncusu, takimDegissinMi: true }
+    ];
+
+    let secilen = aksiyonlar[Math.floor(Math.random() * aksiyonlar.length)];
+
+     // Penaltı Sonuçlandırması
+    if (secilen.tip === "PENALTI") {
+        if (Math.random() < 0.85) { // %85 gol
+            secilen.metin += `\n\n⚽ **Topun başına geçen ${mevcutOyuncu} kaleciyi ters köşeye yatırdı ve PENALTIDAN GOLÜ ATTI!**`;
+            if (guncelMac.topSahibiTakim === "t1") guncelMac.skor1++; else guncelMac.skor2++;
+            secilen.yeniTopcu = oyuncuSec(savunmaTakimKey, "Rakip");
+            secilen.takimDegissinMi = true;
+        } else {
+            secilen.metin += `\n\n❌ **KAÇTI! ${mevcutOyuncu} penaltıyı dışarı attı veya Kaleci kurtardı! Kaçan penaltı!**`;
+            secilen.yeniTopcu = defansOyuncusu;
+            secilen.takimDegissinMi = true;
+        }
+    }
+
+    // Normal Gol veya Serbest Vuruş Golü
+    if (secilen.gol && secilen.tip !== "PENALTI") {
+        if (guncelMac.topSahibiTakim === "t1") guncelMac.skor1++; else guncelMac.skor2++;
+    }
+
+    // Kırmızı Kart Durumunda Oyuncu Silme
+    if (secilen.tip === "KIRMIZI_KART" && tkSavunma && tkSavunma.ilk11.length > 0) {
+        tkSavunma.ilk11 = tkSavunma.ilk11.filter(p => p.isim !== defansOyuncusu);
+        secilen.metin += `\n\n🔴 **${defansOyuncusu}** takımını 10 kişi bıraktı! Seyirciler çılgına döndü!`;
+    }
+
+    // Pozisyon Sonrası Top/Takım Sahipliği Güncellemesi
+    guncelMac.topSahibi = secilen.yeniTopcu;
+    if (secilen.takimDegissinMi) {
+        guncelMac.topSahibiTakim = guncelMac.topSahibiTakim === "t1" ? "t2" : "t1";
+    }
+
+    const atakYapanIsim = guncelMac.topSahibiTakim === "t1" ? guncelMac.t1 : guncelMac.t2;
+
+    const pozisyonEmbed = new EmbedBuilder()
+        .setTitle(`📊 CANLI ANLATIM | Dakika: ${displayDakika}`)
+        .setDescription(
+            `🏟️ **Skor:** **${guncelMac.t1} ${guncelMac.skor1} - ${guncelMac.skor2} ${guncelMac.t2}**\n\n` +
+            `🎙️ **Spiker:** ${secilen.metin}\n\n` +
+            `📣 **İzleyici Reaksiyonu:** *${anlikTaraftar}*\n\n` +
+            `⚽ **Topun Durumu:** ${guncelMac.topSahibi} (${atakYapanIsim} ayağında)`
+        )
+        .setColor(secilen.gol || secilen.tip === "PENALTI" ? '#2ecc71' : (secilen.tip === "KIRMIZI_KART" ? '#e74c3c' : '#3498db'));
+
+    if (channel) channel.send({ embeds: [pozisyonEmbed] });
+
+    // --- 🏁 BİTİŞ KONTROLÜ ---
+    if (guncelMac.dakika >= 90 && displayDakika.includes("90+")) {
+        const bitisEmbed = new EmbedBuilder()
+            .setTitle('🏁 DERBİNİN SON DÜDÜĞÜ GELDİ!')
+            .setDescription(`🏆 **Maç Sonucu:** **${guncelMac.t1} ${guncelMac.skor1} - ${guncelMac.skor2} ${guncelMac.t2}**\n\nSeyircilerin unutamayacağı, bol kartlı, penaltılı ultra hızlı derbi bitti!`)
+            .setColor('#27ae60');
+        if (channel) channel.send({ embeds: [bitisEmbed] });
+        clearInterval(guncelMac.intervalId);
+        aktifMaclar.delete(fullKey);
+        return false;
+    }
+
+    return true;
+};
+
+// ==========================================
+// 🎛️ ETKİLEŞİM VE BUTON YÖNETİMİ
 // ==========================================
 client.on('interactionCreate', async (interaction) => {
     if (!interaction.isButton()) return;
 
     const tokens = interaction.customId.split('_');
     const islem = tokens[0];
+    const macKey = tokens.slice(1).join('_'); // macKey'i güvenli şekilde yakalarız
+    const fullKey = `${interaction.channel.id}_${macKey}`;
+
+    const mac = aktifMaclar.get(fullKey);
+    if (!mac) return interaction.reply({ content: 'Bu maça ait veri bulunamadı veya maç sonlandı.', ephemeral: true });
+
+    const channel = client.channels.cache.get(interaction.channel.id);
 
     if (islem === 'baslat') {
-        const t1Key = tokens[1];
-        const t2Key = tokens[2];
-        const kanalId = tokens[3];
-        const fullKey = `${kanalId}_${t1Key}_${t2Key}`;
+        await interaction.update({ content: '🔥 Tribünler alev aldı! Hakem ilk düdüğü çaldı!', components: [] });
+        
+        mac.intervalId = setInterval(() => {
+            const devam = pozisyonOynat(fullKey, channel);
+            if (!devam) clearInterval(mac.intervalId);
+        }, 5000);
+    }
 
-        const mac = aktifMaclar.get(fullKey);
-        if (!mac) return interaction.reply({ content: 'Maç bulunamadı.', ephemeral: true });
+    if (islem === 'devam') {
+        await interaction.update({ content: '⚽ İkinci yarı başladı, takımlar sahada!', components: [] });
+        
+        mac.durum = 'IKINCI_YARI';
+        mac.intervalId = setInterval(() => {
+            const devam = pozisyonOynat(fullKey, channel);
+            if (!devam) clearInterval(mac.intervalId);
+        }, 5000);
+    }
 
-        await interaction.update({ content: '🔥 Tribünlerde meşaleler yakıldı! Hakem maçı başlattı!', components: [] });
-
-        const channel = client.channels.cache.get(kanalId);
-
-        const oyuncuSec = (takimKey, varsayilanIsim) => {
-            const tk = takimlar.get(takimKey);
-            if (!tk || tk.ilk11.length === 0) return varsayilanIsim;
-            const secilen = tk.ilk11[Math.floor(Math.random() * tk.ilk11.length)];
-            return secilen.isim;
-        };
-
-        const pozisyonOynat = () => {
-            const guncelMac = aktifMaclar.get(fullKey);
-            if (!guncelMac) return false;
-
-            let displayDakika = "";
-
-            if (guncelMac.durum === 'ILK_YARI') {
-                guncelMac.dakika += 3;
-                if (guncelMac.dakika >= 45) {
-                    guncelMac.dakika = 45;
-                    guncelMac.durum = 'DEVRE_ARASI';
-                    displayDakika = "45+2'";
-                } else {
-                    displayDakika = `${guncelMac.dakika}'`;
-                }
-            } else if (guncelMac.durum === 'DEVRE_ARASI') {
-                const devreEmbed = new EmbedBuilder()
-                    .setTitle('⏸️ İLK YARI SONA ERDİ | TARAFTAR ÇILGINA DÖNDÜ')
-                    .setDescription(`🏟️ **Skor:** **${guncelMac.t1} ${guncelMac.skor1} - ${guncelMac.skor2} ${guncelMac.t2}**\n\nİlk yarı nefesleri kesti! Takımlar taktik almak için soyunma odasında.`)
-                    .setColor('#34495e');
-                if (channel) channel.send({ embeds: [devreEmbed] });
-                
-                guncelMac.dakika = 45;
-                guncelMac.durum = 'IKINCI_YARI';
-                return true; 
-            } else if (guncelMac.durum === 'IKINCI_YARI') {
-                guncelMac.dakika += 3;
-                if (guncelMac.dakika >= 90) {
-                    guncelMac.dakika = 90;
-                    displayDakika = "90+4'";
-                } else {
-                    displayDakika = `${guncelMac.dakika}'`;
-                }
-            }
-
-            const atakYapanTakimKey = guncelMac.topSahibiTakim === "t1" ? guncelMac.t1Key : guncelMac.t2Key;
-            const savunmaTakimKey = guncelMac.topSahibiTakim === "t1" ? guncelMac.t2Key : guncelMac.t1Key;
-
-            const tkAtak = takimlar.get(atakYapanTakimKey);
-            const tkSavunma = takimlar.get(savunmaTakimKey);
-
-            const mevcutOyuncu = guncelMac.topSahibi;
-            const pasAlacakOyuncu = oyuncuSec(atakYapanTakimKey, `**Pas Alacak Oyuncu**`);
-            const defansOyuncusu = oyuncuSec(savunmaTakimKey, `**Rakip Defans**`);
-
-            // --- 🗣️ ÇILGIN TARAFTAR YORUMLARI ---
-            const taraftarYorumlari = [
-                "🏟️ Stadyum adeta kulakları sağır ediyor, izleyiciler bu maça BAYILDI!",
-                "🔥 Tribünler ayakta! Müthiş tekmeye kafa uzatılan bir derbi!",
-                "👏 Seyirciler harika futbol resitali karşısında avuçları patlayana kadar alkışlıyor!",
-                "📣 'Ooo Şampiyon!' sesleri tüm şehri inletiyor!",
-                "🤯 İzleyiciler ekran başında ve tribünde tırnaklarını yiyor!"
-            ];
-            const anlikTaraftar = taraftarYorumlari[Math.floor(Math.random() * taraftarYorumlari.length)];
-
-            // --- 🩹 1. SAKATLIK VE ZORUNLU OYUNCU DEĞİŞİKLİĞİ (%8 ihtimal) ---
-            if (Math.random() < 0.08 && tkAtak && tkAtak.ilk11.length > 0 && tkAtak.yedekler.length > 0) {
-                const rIndex = Math.floor(Math.random() * tkAtak.ilk11.length);
-                const sakatlanan = tkAtak.ilk11[rIndex];
-                const giren = tkAtak.yedekler.shift();
-
-                tkAtak.ilk11[rIndex] = giren;
-                guncelMac.topSahibi = giren.isim;
-
-                const sakatlikEmbed = new EmbedBuilder()
-                    .setTitle(`🏥 SAKATLIK! OYUN DURDU! | Dakika: ${displayDakika}`)
-                    .setDescription(`🚨 **Tansiyon Yüksek!** **${sakatlanan.isim}** ikili mücadelede acı içinde yerde kaldı! Sağlık görevlileri sedyeyle oyuna girdi.\n\n🔻 **Sakatlanan:** ${sakatlanan.isim}\n🔺 **Zorunlu Değişiklik:** ${giren.isim} [${giren.mevki}] topu devraldı!`)
-                    .setColor('#e67e22');
-                if (channel) channel.send({ embeds: [sakatlikEmbed] });
-                return true;
-            }
-
-            // --- 👊 2. OYUNCU VE TARAFTAR KAVGALARI (%8 ihtimal) ---
-            if (Math.random() < 0.08) {
-                const kavgalar = [
-                    `🥊 **ORTALIK KARIŞTI!** **${mevcutOyuncu}** ile **${defansOyuncusu}** kafa kafaya geldi, birbirlerini ittiriyorlar! Hakem ve diğer oyuncular araya girmeye çalışıyor!`,
-                    `🎆 **TARAFTARLAR SAHADA!** Gol pozisyonu sonrası tribünler çıldırdı, sahaya yabancı maddeler yağıyor! Güvenlik görevlileri kırmızı alarmda!`
-                ];
-                const secilenKavga = kavgalar[Math.floor(Math.random() * kavgalar.length)];
-                const kavgaEmbed = new EmbedBuilder()
-                    .setTitle(`💥 MAÇTA KAOS VE GERGİNLİK ANLARI | Dakika: ${displayDakika}`)
-                    .setDescription(`${secilenKavga}\n\nİzleyiciler heyecanla olan biteni izliyor, atmosfer kıvılcım alıyor!`)
-                    .setColor('#7f8c8d');
-                if (channel) channel.send({ embeds: [kavgaEmbed] });
-                return true;
-            }
-
-            // --- ⚽ 3. HIZLI PASLAŞMA AKSİYONLARI ---
-            const aksiyonlar = [
-                { tip: "PAS", metin: `⚽ **${mevcutOyuncu}** orta yuvarlakta kafasını kaldırdı ve takım arkadaşı **${pasAlacakOyuncu}**'ya şık bir **Pas** aktardı.`, yeniTopcu: pasAlacakOyuncu, takimDegissinMi: false },
-                { tip: "ARA_PAS", metin: `⚡ Müthiş bir vizyon! **${mevcutOyuncu}** savunma arasına öldürücü bir **Ara Pası** bıraktı, **${pasAlacakOyuncu}** hareketlendi!`, yeniTopcu: pasAlacakOyuncu, takimDegissinMi: false },
-                { tip: "EL", metin: `🖐️ **DÜDÜK ÇALDI!** **${defansOyuncusu}** topu elle kesti! Hakem pozisyonu yakaladı, **Elle Oynama (El)** gerekçesiyle durdurdu. Top serbest vuruşla tekrar oyunda!`, yeniTopcu: mevcutOyuncu, takimDegissinMi: false },
-                { tip: "KIRMIZI_KART", metin: `🟥 **VAR İNCELEMESİ VE KIRMIZI KART!** **${defansOyuncusu}**, **${mevcutOyuncu}**'ya arkadan sert daldı. Hakem **VAR ekranına** gitti... Karar: **DİREKT KIRMIZI KART!**`, yeniTopcu: mevcutOyuncu, takimDegissinMi: false },
-                { tip: "PENALTI", metin: `🚨 **VAR İNCELEMESİ: PENALTI!** **${mevcutOyuncu}** ceza sahasında yerde kalmıştı. Hakem oyunu durdurup VAR incelemesi yaptı ve **PENALTI** noktasını gösterdi!`, yeniTopcu: mevcutOyuncu, takimDegissinMi: false },
-                { tip: "GOL", metin: `🥅 **VAR KONTROLLÜ GOOOL!** **${mevcutOyuncu}** köşeye mermi gibi zımbaladı! Hakem VAR odasını dinledi, ofsayt yok, **GOL GEÇERLİ!**`, yeniTopcu: oyuncuSec(savunmaTakimKey, "Rakip"), takimDegissinMi: true },
-                { tip: "KAPTI", metin: `🛑 **Araya giren savunma!** **${mevcutOyuncu}** pası atmak isterken **${defansOyuncusu}** ayak koydu ve topu takımına kazandırdı!`, yeniTopcu: defansOyuncusu, takimDegissinMi: true }
-            ];
-
-            let secilen = aksiyonlar[Math.floor(Math.random() * aksiyonlar.length)];
-
-// --- AKSİYON MANTIKSAL KONTROLLERİ ---
-            
-            // Penaltı Atışı Değerlendirmesi
-            if (secilen.tip === "PENALTI") {
-                if (Math.random() < 0.75) {
-                    secilen.metin += `\n\n⚽ **Topun başına geçen ${mevcutOyuncu} kaleciyi ve topu ayrı köşelere gönderdi, PENALTIDAN GOL!**`;
-                    if (guncelMac.topSahibiTakim === "t1") guncelMac.skor1++; else guncelMac.skor2++;
-                    secilen.yeniTopcu = oyuncuSec(savunmaTakimKey, "Rakip");
-                    secilen.takimDegissinMi = true;
-                } else {
-                    secilen.metin += `\n\n❌ **KAÇTI! ${mevcutOyuncu} penaltıyı direğe nişanladı! Top oyun alanına geri dönüyor!**`;
-                    secilen.yeniTopcu = defansOyuncusu;
-                    secilen.takimDegissinMi = true;
-                }
-            }
-
-            // Normal Gol Değerlendirmesi
-            if (secilen.tip === "GOL") {
-                if (guncelMac.topSahibiTakim === "t1") guncelMac.skor1++; else guncelMac.skor2++;
-            }
-
-            // Kırmızı Kart Cezası Takım Eksiltme
-            if (secilen.tip === "KIRMIZI_KART" && tkSavunma && tkSavunma.ilk11.length > 0) {
-                tkSavunma.ilk11 = tkSavunma.ilk11.filter(p => p.isim !== defansOyuncusu);
-                secilen.metin += `\n\n🔴 **${defansOyuncusu}** takımını 10 kişi bıraktı! Seyirciler ıslıklıyor!`;
-                secilen.yeniTopcu = mevcutOyuncu;
-                secilen.takimDegissinMi = false;
-            }
-
-            // Topun ve Takımın Sahibi Güncellemesi
-            guncelMac.topSahibi = secilen.yeniTopcu;
-            if (secilen.takimDegissinMi) {
-                guncelMac.topSahibiTakim = guncelMac.topSahibiTakim === "t1" ? "t2" : "t1";
-            }
-
-            const atakYapanIsim = guncelMac.topSahibiTakim === "t1" ? guncelMac.t1 : guncelMac.t2;
-
-            // --- GÖRSEL SPIKER EMBED ---
-            const pozisyonEmbed = new EmbedBuilder()
-                .setTitle(`📊 SPIKER CANLI ANLATIM | Dakika: ${displayDakika}`)
-                .setDescription(
-                    `🏟️ **Skor:** **${guncelMac.t1} ${guncelMac.skor1} - ${guncelMac.skor2} ${guncelMac.t2}**\n\n` +
-                    `🎙️ **Spiker:** ${secilen.metin}\n\n` +
-                    `📣 **İzleyici Reaksiyonu:** *${anlikTaraftar}*\n\n` +
-                    `⚽ **Topun Durumu:** ${guncelMac.topSahibi} (${atakYapanIsim} kontrolünde)`
-                )
-                .setColor(secilen.tip === "GOL" ? '#2ecc71' : (secilen.tip === "KIRMIZI_KART" || secilen.tip === "PENALTI" ? '#e74c3c' : '#3498db'));
-
-            if (channel) channel.send({ embeds: [pozisyonEmbed] });
-
-            // --- 🏁 DERBİ BİTİŞ KONTROLÜ ---
-            if (guncelMac.dakika >= 90 && displayDakika.includes("90+")) {
-                const bitisEmbed = new EmbedBuilder()
-                    .setTitle('🏁 DERBİNİN SON DÜDÜĞÜ GELDİ!')
-                    .setDescription(`🏆 **Maç Sonucu:** **${guncelMac.t1} ${guncelMac.skor1} - ${guncelMac.skor2} ${guncelMac.t2}**\n\nSeyircilerin ayakta alkışladığı, unutulmaz 5 saniyelik ultra hızlı derbi sona erdi!`)
-                    .setColor('#27ae60');
-                if (channel) channel.send({ embeds: [bitisEmbed] });
-                aktifMaclar.delete(fullKey);
-                return false;
-            }
-            return true;
-        };
-
-        const devamEdiyor = pozisyonOynat();
-
-        if (devamEdiyor) {
-            // Tam 5 saniyede bir (5000 ms) tetiklenecek şekilde ayarlandı
-            const interval = setInterval(() => {
-                const d = pozisyonOynat();
-                if (!d) clearInterval(interval);
-            }, 5000);
-
-            mac.intervalId = interval;
-        }
+    if (islem === 'polis') {
+        await interaction.update({ content: '👮 Çevik kuvvet sahaya girdi! Tüm saldırgan oyuncular ayrıldı ve tribünler sakinleştirildi. Maç kaldığı yerden devam ediyor!', components: [] });
+        
+        mac.durum = mac.dakika >= 45 ? 'IKINCI_YARI' : 'ILK_YARI';
+        mac.intervalId = setInterval(() => {
+            const devam = pozisyonOynat(fullKey, channel);
+            if (!devam) clearInterval(mac.intervalId);
+        }, 5000);
     }
 });
 
