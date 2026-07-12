@@ -32,15 +32,30 @@ const takimlar = new Map();
 const aktifMaclar = new Map(); 
 
 client.once('ready', () => {
-    console.log(`${client.user.tag} aktif ve derbiye hazır!`);
+    console.log(`${client.user.tag} aktif ve gerçekçi derbi motoru hazır!`);
 });
 
-// Yardımcı Fonksiyon: Rastgele Oyuncu Seçimi
-const oyuncuSec = (takimKey, varsayilanIsim) => {
+// Yardımcı Fonksiyon: Mevkisine Göre Rastgele Oyuncu Seçimi
+const oyuncuSecMevki = (takimKey, bolge, varsayilanIsim) => {
     const tk = takimlar.get(takimKey);
     if (!tk || !tk.ilk11 || tk.ilk11.length === 0) return varsayilanIsim;
-    const secilen = tk.ilk11[Math.floor(Math.random() * tk.ilk11.length)];
-    return secilen.isim;
+    
+    // Bölgelere göre mevkileri filtrele
+    let filtrelenmis = [];
+    if (bolge === "DEFANS") {
+        filtrelenmis = tk.ilk11.filter(p => ["DEF", "STP", "OSB", "SLB"].includes(p.mevki));
+    } else if (bolge === "ORTASAHA") {
+        filtrelenmis = tk.ilk11.filter(p => ["OS", "DOS", "MOS", "OOS", "KANAT"].includes(p.mevki));
+    } else if (bolge === "HUCUM") {
+        filtrelenmis = tk.ilk11.filter(p => ["SNT", "FOR", "FW", "KANAT"].includes(p.mevki));
+    } else if (bolge === "KALECI") {
+        filtrelenmis = tk.ilk11.filter(p => ["KL", "KLV", "KALECI"].includes(p.mevki));
+    }
+
+    if (filtrelenmis.length === 0) {
+        return tk.ilk11[Math.floor(Math.random() * tk.ilk11.length)].isim;
+    }
+    return filtrelenmis[Math.floor(Math.random() * filtrelenmis.length)].isim;
 };
 
 client.on('messageCreate', async (message) => {
@@ -228,7 +243,7 @@ client.on('messageCreate', async (message) => {
 
         const embed = new EmbedBuilder()
             .setTitle('🏟️ BÜYÜK DERBİ HEYECANI BAŞLIYOR!')
-            .setDescription(`⚽ **${takim1.isim}** vs **${takim2.isim}**\n\nMaç süresi **5 saniyede bir** akacak! VAR, Kırmızı Kart ve Penaltı Fırtınası Başlıyor!`)
+            .setDescription(`⚽ **${takim1.isim}** vs **${takim2.isim}**\n\nMaç süresi **15 saniyede bir** akacak! Gerçekçi saha bölgeleri ve taktiksel atak motoru devrede!`)
             .setColor('#e74c3c');
 
         const row = new ActionRowBuilder().addComponents(
@@ -246,6 +261,7 @@ client.on('messageCreate', async (message) => {
             dakika: 0,
             topSahibi: takim1.ilk11[0] ? takim1.ilk11[0].isim : `**${takim1.isim} Oyuncusu**`,
             topSahibiTakim: "t1",
+            sahaBolgesi: "ORTASAHA", // DEFANS, ORTASAHA, HUCUM
             durum: 'ILK_YARI',
             intervalId: null,
             kanalId: message.channel.id
@@ -278,7 +294,7 @@ client.on('messageCreate', async (message) => {
 });
 
 // ==========================================
-// 🎛️ POZİSYON OYNATMA VE KAOS MOTORU
+// 🎛️ GERÇEKÇİ MAÇ VE TAKTİK MOTORU (15 SN)
 // ==========================================
 const pozisyonOynat = (fullKey, channel) => {
     const guncelMac = aktifMaclar.get(fullKey);
@@ -323,21 +339,26 @@ const pozisyonOynat = (fullKey, channel) => {
     const tkAtak = takimlar.get(atakYapanTakimKey);
     const tkSavunma = takimlar.get(savunmaTakimKey);
 
+    // Mevkisel Oyuncu Seçimleri
     const mevcutOyuncu = guncelMac.topSahibi;
-    const pasAlacakOyuncu = oyuncuSec(atakYapanTakimKey, `**Takım Arkadaşı**`);
-    const defansOyuncusu = oyuncuSec(savunmaTakimKey, `**Rakip Defans**`);
+    const defansOyuncusu = oyuncuSecMevki(atakYapanTakimKey, "DEFANS", "Savunma Oyuncusu");
+    const ortaSahaOyuncusu = oyuncuSecMevki(atakYapanTakimKey, "ORTASAHA", "Orta Saha Oyuncusu");
+    const hucumOyuncusu = oyuncuSecMevki(atakYapanTakimKey, "HUCUM", "Forvet Oyuncusu");
+    
+    const rakipDefans = oyuncuSecMevki(savunmaTakimKey, "DEFANS", "Rakip Defans");
+    const rakipKaleci = oyuncuSecMevki(savunmaTakimKey, "KALECI", "Rakip Kaleci");
 
-    // --- 🗣️ ÇILGIN TARAFTAR YORUMLARI ---
+    // --- 🗣️ GERÇEKÇİ TARAFTAR YORUMLARI ---
     const taraftarYorumlari = [
-        "🏟️ Stadyum adeta yıkılıyor, izleyiciler bu maça BAYILDI!",
-        "🔥 Tribünler ayakta! Müthiş bir seyir zevki var!",
-        "👏 Seyirciler harika futbol resitali karşısında avuçları patlayana kadar alkışlıyor!",
-        "🤯 Ekran başındakiler ve tribündekiler heyecandan tırnaklarını yiyor!"
+        "🏟️ Tribünler adeta tek ses, stadyumda inanılmaz bir uğultu var!",
+        "🔥 Meşaleler yakıldı, taraftarlar takımlarını ileri itiyor!",
+        "👏 Müthiş pas trafiği sonrası tüm tribünler ayağa kalktı!",
+        "🤯 Tırnaklar yeniyor, herkes nefesini tutmuş durumda!"
     ];
     const anlikTaraftar = taraftarYorumlari[Math.floor(Math.random() * taraftarYorumlari.length)];
 
-    // --- 🩹 SAKATLIK VE DEĞİŞİKLİK (%6 İhtimal) ---
-    if (Math.random() < 0.06 && tkAtak && tkAtak.ilk11.length > 0 && tkAtak.yedekler.length > 0) {
+    // --- 🩹 SAKATLIK (%5 İhtimal) ---
+    if (Math.random() < 0.05 && tkAtak && tkAtak.ilk11.length > 0 && tkAtak.yedekler.length > 0) {
         const rIndex = Math.floor(Math.random() * tkAtak.ilk11.length);
         const sakatlanan = tkAtak.ilk11[rIndex];
         const giren = tkAtak.yedekler.shift();
@@ -346,94 +367,117 @@ const pozisyonOynat = (fullKey, channel) => {
         guncelMac.topSahibi = giren.isim;
 
         const sakatlikEmbed = new EmbedBuilder()
-            .setTitle(`🏥 SAKATLIK! OYUN DURDU | Dakika: ${displayDakika}`)
-            .setDescription(`🚨 **Sakatlık Anı!** **${sakatlanan.isim}** yerde kaldı! Sedye sahada.\n\n🔻 **Çıkan:** ${sakatlanan.isim}\n🔺 **Giren:** ${giren.isim} [${giren.mevki}]`)
+            .setTitle(`🏥 SAKATLIK VE OYUNCU DEĞİŞİKLİĞİ | Dakika: ${displayDakika}`)
+            .setDescription(`🚨 **Oyun Durdu!** **${sakatlanan.isim}** acı içinde yerde kaldı. Sağlık ekibi sedyeyle sahada.\n\n🔻 **Çıkan:** ${sakatlanan.isim}\n🔺 **Giren:** ${giren.isim} [${giren.mevki}]`)
             .setColor('#e67e22');
         if (channel) channel.send({ embeds: [sakatlikEmbed] });
         return true;
     }
 
-    // --- 👊 TARAFTAR VE OYUNCU KAVGALARI (%10 İhtimal - BUTONLU DURDURMA) ---
-    if (Math.random() < 0.10) {
+    // --- 👊 KAOTİK KAVGA (%8 İhtimal - MAÇI DURDURUR) ---
+    if (Math.random() < 0.08) {
         clearInterval(guncelMac.intervalId);
         guncelMac.durum = 'KAVGA_VAR';
 
         const kavgaEmbed = new EmbedBuilder()
-            .setTitle(`💥 ORTALIK KARIŞTI! SAHA SAVAŞ ALANI | Dakika: ${displayDakika}`)
-            .setDescription(`🥊 **KAVGA!** **${mevcutOyuncu}** ve **${defansOyuncusu}** tekmelerle birbirine girdi! Taraftarlar sahaya atlıyor, maç tamamen durdu! Müdahale gerekiyor!`)
+            .setTitle(`💥 ORTALIK KARIŞTI! SAHADA ARBEDE | Dakika: ${displayDakika}`)
+            .setDescription(`🥊 **KAVGA!** **${mevcutOyuncu}** ve **${rakipDefans}** sert müdahale sonrası birbirinin boğazına sarıldı! Yedek kulübeleri ve taraftarlar sahaya koşuyor. Hakem çaresiz kaldı!`)
             .setColor('#7f8c8d');
 
         const row = new ActionRowBuilder().addComponents(
-            new ButtonBuilder().setCustomId(`polis_${guncelMac.key}`).setLabel('👮 Polisleri Sahaya Çağır (Kavgayı Ayır)').setStyle(ButtonStyle.Danger)
+            new ButtonBuilder().setCustomId(`polis_${guncelMac.key}`).setLabel('👮 Polis Müdahalesi İsteyin').setStyle(ButtonStyle.Danger)
         );
 
         if (channel) channel.send({ embeds: [kavgaEmbed], components: [row] });
         return false;
     }
 
-    // --- ⚽ FUTBOL VARYASYONLARI (PENALTI VE KIRMIZI ABARTILDI) ---
-    const aksiyonlar = [
-        { tip: "KISA_PAS", metin: `⚽ **${mevcutOyuncu}** pasını yakınındaki **${pasAlacakOyuncu}**'ya aktardı, kısa paslarla çıkıyorlar.`, yeniTopcu: pasAlacakOyuncu, takimDegissinMi: false },
-        { tip: "UZUN_PAS", metin: `🚀 **${mevcutOyuncu}** savunmanın arkasına çok **Uzun bir Pas** gönderdi, **${pasAlacakOyuncu}** göğsüyle kontrol etti!`, yeniTopcu: pasAlacakOyuncu, takimDegissinMi: false },
-        { tip: "CALIM", metin: `⚡ Muhteşem çalım! **${mevcutOyuncu}**, rakibi **${defansOyuncusu}**'nu enfes bir bacak arası **Çalımla** geçti!`, yeniTopcu: mevcutOyuncu, takimDegissinMi: false },
-        { tip: "ORTA_ACTI", metin: `📐 **${mevcutOyuncu}** sağ kanattan ceza sahasına doğru harika bir **Orta Açtı**, içeride karambol var!`, yeniTopcu: pasAlacakOyuncu, takimDegissinMi: false },
-        { tip: "AUT", metin: `💨 **${mevcutOyuncu}** sert vurdu ama top üstten **Dışarı (Auta)** gitti. Oyun rakip kaleciden başlayacak.`, yeniTopcu: oyuncuSec(savunmaTakimKey, "Kaleci"), takimDegissinMi: true },
-        { tip: "SERBEST_VURUS", metin: `🎯 **DIREKT SERBEST VURUŞ GOLÜ!** Ceza sahası dışından **${mevcutOyuncu}** barajın üstünden muhteşem vurdu ve top çatalda! Seyirciler ayakta alkışlıyor!`, yeniTopcu: oyuncuSec(savunmaTakimKey, "Rakip"), takimDegissinMi: true, gol: true },
-        { tip: "EL", metin: `🖐️ Düdük çaldı! **${defansOyuncusu}** topu elle kesti. Hakem **Elle Oynama (El)** kararı verdi!`, yeniTopcu: mevcutOyuncu, takimDegissinMi: false },
-        
-        // ABARTILI KART VE PENALTI İHTİMALLERİ (Havuzda oranları artsın diye fazla eklendi)
-        { tip: "PENALTI", pTipi: "VAR_PENALTI", metin: `🚨 **VAR KONTROLLÜ PENALTI!** **${mevcutOyuncu}** ceza sahasında uçarak indirildi! Hakem ekrana gitti ve **BEYAZ NOKTAYI GÖSTERDİ!**`, yeniTopcu: mevcutOyuncu, takimDegissinMi: false },
-        { tip: "PENALTI", pTipi: "DIREKT_PENALTI", metin: `🚨 **BEYAZ NOKTA!** Savunma oyuncusu **${defansOyuncusu}** arkadan çok sert kaydı, Hakem tereddütsüz **PENALTI** noktasını gösterdi!`, yeniTopcu: mevcutOyuncu, takimDegissinMi: false },
-        { tip: "KIRMIZI_KART", metin: `🟥 **VAR UYARISIYLA DİREKT KIRMIZI KART!** **${defansOyuncusu}** arkadan bileğe bastı! Hakem VAR ekranını izledi ve tereddütsüz **KIRMIZI KARTINI ÇIKARDI!**`, yeniTopcu: mevcutOyuncu, takimDegissinMi: false },
-        { tip: "KIRMIZI_KART", metin: `🟥 **İKİNCİ SARI VE KIRMIZI!** **${defansOyuncusu}** sert müdahale sonrası ikinci sarı karttan **KIRMIZI KART** ile oyun dışı kaldı!`, yeniTopcu: mevcutOyuncu, takimDegissinMi: false },
-        { tip: "GOL", metin: `🥅 **GOOOL!** **${mevcutOyuncu}** kaleciyle karşı karşıya pozisyonda topu ağlarla buluşturdu!`, yeniTopcu: oyuncuSec(savunmaTakimKey, "Rakip"), takimDegissinMi: true, gol: true },
-        { tip: "KAPTI", metin: `🛑 Araya giren defans! **${mevcutOyuncu}** çalım denerken **${defansOyuncusu}** topu temiz bir müdahaleyle söktü aldı!`, yeniTopcu: defansOyuncusu, takimDegissinMi: true }
-    ];
+    // --- ⚽ GERÇEKÇİ BÖLGESEL AKSİYON MOTORU ---
+    let secilen = { metin: "", yeniTopcu: mevcutOyuncu, takimDegissinMi: false, yeniBolge: guncelMac.sahaBolgesi, gol: false, kart: false, penalti: false };
 
-    let secilen = aksiyonlar[Math.floor(Math.random() * aksiyonlar.length)];
+    if (guncelMac.sahaBolgesi === "DEFANS") {
+        const defansAksiyonlari = [
+            { metin: `🛡️ **${mevcutOyuncu}** kendi ceza sahası çevresinde topu kontrol etti ve pasını garanti oynayarak **${defansOyuncusu}**'na verdi.`, yeniTopcu: defansOyuncusu, takimDegissinMi: false, yeniBolge: "DEFANS" },
+            { metin: `⚙️ Kendi yarı alanından organize çıkıyorlar. **${mevcutOyuncu}** kısa pasla orta sahadaki **${ortaSahaOyuncusu}**'nu gördü.`, yeniTopcu: ortaSahaOyuncusu, takimDegissinMi: false, yeniBolge: "ORTASAHA" },
+            { metin: `🚀 Savunmadan uzun top! **${mevcutOyuncu}** ileri uçtaki **${hucumOyuncusu}**'na doğru **Uzun bir Pas** attı, top tehlikeli bölgede!`, yeniTopcu: hucumOyuncusu, takimDegissinMi: false, yeniBolge: "HUCUM" },
+            { metin: `🛑 Hatalı pas! **${mevcutOyuncu}** pası çıkarırken araya rakip girdi! **${rakipDefans}** topu kaptı!`, yeniTopcu: rakipDefans, takimDegissinMi: true, yeniBolge: "ORTASAHA" }
+        ];
+        secilen = defansAksiyonlari[Math.floor(Math.random() * defansAksiyonlari.length)];
 
-     // Penaltı Sonuçlandırması
-    if (secilen.tip === "PENALTI") {
-        if (Math.random() < 0.85) { // %85 gol
-            secilen.metin += `\n\n⚽ **Topun başına geçen ${mevcutOyuncu} kaleciyi ters köşeye yatırdı ve PENALTIDAN GOLÜ ATTI!**`;
+    } else if (guncelMac.sahaBolgesi === "ORTASAHA") {
+        const ortaSahaAksiyonlari = [
+            { metin: `⚽ **${mevcutOyuncu}** orta alanda oyunun yönünü değiştirdi, **Kısa Pasla** topu **${ortaSahaOyuncusu}** ile buluşturdu.`, yeniTopcu: ortaSahaOyuncusu, takimDegissinMi: false, yeniBolge: "ORTASAHA" },
+            { metin: `⚡ Harika hareket! **${mevcutOyuncu}**, şık bir **Çalımla** rakibi **${rakipDefans}**'ı bakkala gönderdi ve takımını ileri taşıdı!`, yeniTopcu: mevcutOyuncu, takimDegissinMi: false, yeniBolge: "ORTASAHA" },
+            { metin: `📐 Oyun şimdi hareketlendi! **${mevcutOyuncu}** dikine oynadı, hücum bölgesindeki **${hucumOyuncusu}** topu aldı!`, yeniTopcu: hucumOyuncusu, takimDegissinMi: false, yeniBolge: "HUCUM" },
+            { metin: `🛑 Pres sonuç verdi! **${mevcutOyuncu}** orta sahada topu saklamaya çalışırken **${rakipDefans}** ayak koydu ve topu kaptı.`, yeniTopcu: rakipDefans, takimDegissinMi: true, yeniBolge: "ORTASAHA" },
+            { metin: `🟨 **SERT MÜDAHALE!** **${rakipDefans}** orta alanda kontratağı kesmek için **${mevcutOyuncu}**'yu çekip düşürdü. Hakem oyunu durdurdu, Sarı Kart!`, yeniTopcu: mevcutOyuncu, takimDegissinMi: false, yeniBolge: "ORTASAHA" }
+        ];
+        secilen = ortaSahaAksiyonlari[Math.floor(Math.random() * ortaSahaAksiyonlari.length)];
+
+    } else if (guncelMac.sahaBolgesi === "HUCUM") {
+        const hucumAksiyonlari = [
+            { metin: `📐 **${mevcutOyuncu}** sol kanattan ceza sahasına doğru harika bir **Orta Açtı**, arka direkte büyük tehlike!`, yeniTopcu: hucumOyuncusu, takimDegissinMi: false, yeniBolge: "HUCUM" },
+            { metin: `💥 **${mevcutOyuncu}** ceza sahası çizgisinden kaleyi düşündü! Sert şut! Ama top üstten dışarı gitti, **Aut**.`, yeniTopcu: rakipKaleci, takimDegissinMi: true, yeniBolge: "DEFANS" },
+            { metin: `🎯 **ENFES SERBEST VURUŞ GOLÜ!** Ceza sahası yayının hemen dışından **${mevcutOyuncu}** topun başına geçti, barajın üstünden kalecinin uzanamayacağı köşeye: **GOOOL!**`, yeniTopcu: rakipKaleci, takimDegissinMi: true, yeniBolge: "ORTASAHA", gol: true },
+            { metin: `🥅 **GOOOL! HARİKA HÜCUM ORGANİZASYONU!** **${mevcutOyuncu}** savunmanın arasına sızdı, kaleciyle karşı karşıya plase ve top ağlarda!`, yeniTopcu: rakipKaleci, takimDegissinMi: true, yeniBolge: "ORTASAHA", gol: true },
+            
+            // ABARTILI PENALTI VE KIRMIZI KARTLAR (Sadece Hücum bölgesinde tetiklenir)
+            { metin: `🚨 **VAR İNCELEMESİ VE PENALTI!** **${mevcutOyuncu}** ceza sahası içinde dönmek isterken yerde kaldı. Hakem VAR ekranını izledi ve **BEYAZ NOKTAYI GÖSTERDİ!**`, yeniTopcu: mevcutOyuncu, takimDegissinMi: false, yeniBolge: "HUCUM", penalti: true },
+            { metin: `🟥 **DİREKT KIRMIZI KART! KATLİAM GİBİ MÜDAHALE!** **${rakipDefans}**, gole giden **${mevcutOyuncu}**'yu ceza sahası dışında arkadan biçti! Hakem direkt kırmızı kartı çıkardı!`, yeniTopcu: mevcutOyuncu, takimDegissinMi: false, yeniBolge: "HUCUM", kart: true, cezaAlan: rakipDefans }
+        ];
+        secilen = hucumAksiyonlari[Math.floor(Math.random() * hucumAksiyonlari.length)];
+    }
+
+    // --- ÖZEL KOŞUL KONTROLLERİ ---
+
+    // 1. Penaltı Atışı Değerlendirmesi
+    if (secilen.penalti) {
+        if (Math.random() < 0.85) { // %85 Gol ihtimali
+            secilen.metin += `\n\n⚽ **Topun başına geçen ${mevcutOyuncu} kaleciyi ve topu ayrı köşelere gönderdi, PENALTIDAN GOL!**`;
             if (guncelMac.topSahibiTakim === "t1") guncelMac.skor1++; else guncelMac.skor2++;
-            secilen.yeniTopcu = oyuncuSec(savunmaTakimKey, "Rakip");
+            secilen.yeniTopcu = rakipKaleci;
             secilen.takimDegissinMi = true;
+            secilen.newBolge = "ORTASAHA"; // Gol sonrası santra olur orta sahaya geçer
         } else {
-            secilen.metin += `\n\n❌ **KAÇTI! ${mevcutOyuncu} penaltıyı dışarı attı veya Kaleci kurtardı! Kaçan penaltı!**`;
-            secilen.yeniTopcu = defansOyuncusu;
+            secilen.metin += `\n\n❌ **KAÇTI! ${mevcutOyuncu} penaltıyı direğe nişanladı! Dönen topu savunma uzaklaştırıyor!**`;
+            secilen.yeniTopcu = rakipDefans;
             secilen.takimDegissinMi = true;
+            secilen.newBolge = "DEFANS";
         }
     }
 
-    // Normal Gol veya Serbest Vuruş Golü
-    if (secilen.gol && secilen.tip !== "PENALTI") {
+    // 2. Normal Gol ve Serbest Vuruş Golü
+    if (secilen.gol) {
         if (guncelMac.topSahibiTakim === "t1") guncelMac.skor1++; else guncelMac.skor2++;
+        secilen.yeniBolge = "ORTASAHA"; // Santra için
     }
 
-    // Kırmızı Kart Durumunda Oyuncu Silme
-    if (secilen.tip === "KIRMIZI_KART" && tkSavunma && tkSavunma.ilk11.length > 0) {
-        tkSavunma.ilk11 = tkSavunma.ilk11.filter(p => p.isim !== defansOyuncusu);
-        secilen.metin += `\n\n🔴 **${defansOyuncusu}** takımını 10 kişi bıraktı! Seyirciler çılgına döndü!`;
+    // 3. Kırmızı Kart Durumunda Oyuncu Eksiltme
+    if (secilen.kart && secilen.cezaAlan && tkSavunma && tkSavunma.ilk11.length > 0) {
+        tkSavunma.ilk11 = tkSavunma.ilk11.filter(p => p.isim !== secilen.cezaAlan);
+        secilen.metin += `\n\n🔴 **${secilen.cezaAlan}** takımını 10 kişi bıraktı! Tribünler çıldırdı!`;
     }
 
-    // Pozisyon Sonrası Top/Takım Sahipliği Güncellemesi
+    // Değerleri Güncelle
     guncelMac.topSahibi = secilen.yeniTopcu;
+    guncelMac.sahaBolgesi = secilen.yeniBolge;
     if (secilen.takimDegissinMi) {
         guncelMac.topSahibiTakim = guncelMac.topSahibiTakim === "t1" ? "t2" : "t1";
     }
 
     const atakYapanIsim = guncelMac.topSahibiTakim === "t1" ? guncelMac.t1 : guncelMac.t2;
 
+    // --- GÖRSEL SPIKER EMBED ---
     const pozisyonEmbed = new EmbedBuilder()
         .setTitle(`📊 CANLI ANLATIM | Dakika: ${displayDakika}`)
         .setDescription(
             `🏟️ **Skor:** **${guncelMac.t1} ${guncelMac.skor1} - ${guncelMac.skor2} ${guncelMac.t2}**\n\n` +
             `🎙️ **Spiker:** ${secilen.metin}\n\n` +
-            `📣 **İzleyici Reaksiyonu:** *${anlikTaraftar}*\n\n` +
-            `⚽ **Topun Durumu:** ${guncelMac.topSahibi} (${atakYapanIsim} ayağında)`
+            `📣 **İzleyici:** *${anlikTaraftar}*\n\n` +
+            `📍 **Saha Bölgesi:** \`[ ${guncelMac.sahaBolgesi} ]\`\n` +
+            `⚽ **Topun Durumu:** ${guncelMac.topSahibi} (${atakYapanIsim} kontrolünde)`
         )
-        .setColor(secilen.gol || secilen.tip === "PENALTI" ? '#2ecc71' : (secilen.tip === "KIRMIZI_KART" ? '#e74c3c' : '#3498db'));
+        .setColor(secilen.gol || secilen.penalti ? '#2ecc71' : (secilen.kart ? '#e74c3c' : '#3498db'));
 
     if (channel) channel.send({ embeds: [pozisyonEmbed] });
 
@@ -441,7 +485,7 @@ const pozisyonOynat = (fullKey, channel) => {
     if (guncelMac.dakika >= 90 && displayDakika.includes("90+")) {
         const bitisEmbed = new EmbedBuilder()
             .setTitle('🏁 DERBİNİN SON DÜDÜĞÜ GELDİ!')
-            .setDescription(`🏆 **Maç Sonucu:** **${guncelMac.t1} ${guncelMac.skor1} - ${guncelMac.skor2} ${guncelMac.t2}**\n\nSeyircilerin unutamayacağı, bol kartlı, penaltılı ultra hızlı derbi bitti!`)
+            .setDescription(`🏆 **Maç Sonucu:** **${guncelMac.t1} ${guncelMac.skor1} - ${guncelMac.skor2} ${guncelMac.t2}**\n\nTaktik savaşlarının, organize atakların ve kaotik kartların havada uçuştuğu dev derbi bitti!`)
             .setColor('#27ae60');
         if (channel) channel.send({ embeds: [bitisEmbed] });
         clearInterval(guncelMac.intervalId);
@@ -453,14 +497,14 @@ const pozisyonOynat = (fullKey, channel) => {
 };
 
 // ==========================================
-// 🎛️ ETKİLEŞİM VE BUTON YÖNETİMİ
+// 🎛️ ETKİLEŞİM VE BUTON YÖNETİMİ (15 SN)
 // ==========================================
 client.on('interactionCreate', async (interaction) => {
     if (!interaction.isButton()) return;
 
     const tokens = interaction.customId.split('_');
     const islem = tokens[0];
-    const macKey = tokens.slice(1).join('_'); // macKey'i güvenli şekilde yakalarız
+    const macKey = tokens.slice(1).join('_');
     const fullKey = `${interaction.channel.id}_${macKey}`;
 
     const mac = aktifMaclar.get(fullKey);
@@ -474,7 +518,7 @@ client.on('interactionCreate', async (interaction) => {
         mac.intervalId = setInterval(() => {
             const devam = pozisyonOynat(fullKey, channel);
             if (!devam) clearInterval(mac.intervalId);
-        }, 5000);
+        }, 15000); // 15 saniye ayarlandı
     }
 
     if (islem === 'devam') {
@@ -484,7 +528,7 @@ client.on('interactionCreate', async (interaction) => {
         mac.intervalId = setInterval(() => {
             const devam = pozisyonOynat(fullKey, channel);
             if (!devam) clearInterval(mac.intervalId);
-        }, 5000);
+        }, 15000); // 15 saniye ayarlandı
     }
 
     if (islem === 'polis') {
@@ -494,7 +538,7 @@ client.on('interactionCreate', async (interaction) => {
         mac.intervalId = setInterval(() => {
             const devam = pozisyonOynat(fullKey, channel);
             if (!devam) clearInterval(mac.intervalId);
-        }, 5000);
+        }, 15000); // 15 saniye ayarlandı
     }
 });
 
