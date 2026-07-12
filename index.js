@@ -29,10 +29,6 @@ const TRANSFER_YETKILI_1 = '1522697217264062656';
 const TRANSFER_YETKILI_2 = '1522696820751601685';
 const TAKIM_YETKILI = '1522699609506316338';
 
-// Veritabanı simülasyonları
-const antrenmanDurumu = new Map(); 
-const cooldowns = new Map(); 
-
 // --- TAKIM VE MAÇ SİSTEMİ VERİLERİ ---
 const takimlar = new Map(); 
 const aktifMaclar = new Map(); 
@@ -51,8 +47,7 @@ client.on('messageCreate', async (message) => {
             .setDescription(`Merhaba **${message.author.username}**, sunucudaki tüm aktif komutlar aşağıda listelenmiştir:`)
             .addFields(
                 { name: '⚽ Futbol / Takım Komutları', value: '`.takimkur @kisi Fener` | `.takimlist` | `.takimsil Fener` | `.oyuncual @kisi Fener SNT` | `.oyuncucikar @kisi Fener` | `.kadro Fener`', inline: false },
-                { name: '🏟️ Maç Sistemi', value: '`.macbaslat Fener vs Cimbom` (Sadece Maç Yetkilisi başlatabilir)', inline: false },
-                { name: '🏃‍♂️ Eğlence', value: '`.ant` | `.pen`', inline: false }
+                { name: '🏟️ Maç Sistemi', value: '`.macbaslat Fener vs Cimbom` | `.macdurdur` (Sadece Maç Yetkilisi kullanabilir)', inline: false }
             ).setColor('#3498db');
         return message.reply({ embeds: [embed] });
     }
@@ -61,7 +56,6 @@ client.on('messageCreate', async (message) => {
 
     const args = message.content.slice(PREFIX.length).trim().split(/ +/);
     const command = args.shift().toLowerCase();
-    const userId = message.author.id;
 
     // ==========================================
     // 📊 TAKIM VE KADRO YÖNETİMİ KOMUTLARI
@@ -79,7 +73,7 @@ client.on('messageCreate', async (message) => {
 
         takimlar.set(takimAdi.toLowerCase(), {
             isim: takimAdi,
-            kurucuId: hedef.id,
+            kurucuId: parseInt(hedef.id),
             ilk11: [],
             yedekler: []
         });
@@ -93,7 +87,11 @@ client.on('messageCreate', async (message) => {
         takimlar.forEach((t) => {
             liste += `• **${t.isim}** - Sahibi: <@${t.kurucuId}>\n`;
         });
-        message.reply(`📋 **Kurulan Takımlar ve Sahipleri:**\n${liste}`);
+        
+        message.reply({ 
+            content: `📋 **Kurulan Takımlar ve Sahipleri:**\n${liste}`, 
+            allowedMentions: { parse: [] } 
+        });
     }
 
     // --- .takimsil <Takım Adı> ---
@@ -169,7 +167,7 @@ client.on('messageCreate', async (message) => {
     }
 
     // ==========================================
-    // ⚽ 25 DAKİKALIK GERÇEK ZAMANLI MAÇ SİSTEMİ
+    // ⚽ GERÇEK ZAMANLI MAÇ SİSTEMİ KOMUTLARI
     // ==========================================
 
     // --- .macbaslat <Takım1> vs <Takım2> ---
@@ -182,51 +180,51 @@ client.on('messageCreate', async (message) => {
         const bol = yazi.split(/vs/i);
         if (bol.length < 2) return message.reply('Kullanım: `.macbaslat Fenerbahçe vs Galatasaray`');
 
-        const t1Isim = bol[0].trim();
-        const t2Isim = bol[1].trim();
+        const t1Isim = bol[0].trim().toLowerCase();
+        const t2Isim = bol[1].trim().toLowerCase();
 
-        const takim1 = takimlar.get(t1Isim.toLowerCase());
-        const takim2 = takimlar.get(t2Isim.toLowerCase());
+        const takim1 = takimlar.get(t1Isim);
+        const takim2 = takimlar.get(t2Isim);
 
         if (!takim1 || !takim2) return message.reply('Maçı başlatmak için iki takımın da kurulmuş olması gerekir!');
 
         const embed = new EmbedBuilder()
             .setTitle('🏟️ DEV DERBİ BAŞLIYOR!')
-            .setDescription(`**${takim1.isim}** vs **${takim2.isim}**\n\nMaç birazdan gerçek zamanlı (25 dakika) olarak başlayacak!`)
+            .setDescription(`**${takim1.isim}** vs **${takim2.isim}**\n\nButona basıldığı an ilk pozisyon ekrana düşer ve **10 saniyede bir** canlı anlatım başlar!`)
             .setColor('#e74c3c');
 
         const row = new ActionRowBuilder().addComponents(
-            new ButtonBuilder().setCustomId(`ilkYari_15_${message.channel.id}`).setLabel('⏱️ İlk Yarıyı Başlat (15 Dk)').setStyle(ButtonStyle.Danger)
+            new ButtonBuilder().setCustomId(`ilkYari_${t1Isim}_${t2Isim}_${message.channel.id}`).setLabel('⏱️ Maçı Başlat').setStyle(ButtonStyle.Danger)
         );
 
         aktifMaclar.set(message.channel.id, {
+            t1Key: t1Isim,
+            t2Key: t2Isim,
             t1: takim1.isim,
             t2: takim2.isim,
             skor1: 0,
             skor2: 0,
             dakika: 0,
-            durum: 'bekliyor'
+            durum: 'bekliyor',
+            intervalId: null
         });
 
         message.reply({ embeds: [embed], components: [row] });
     }
 
-    // --- .ant Komutu ---
-    if (command === 'ant') {
-        const simdi = Date.now();
-        const cd = cooldowns.get(`${userId}-ant`) || 0;
-        if (simdi < cd) return message.reply('⏱️ Beklemelisin.');
-        let mevcutSkor = antrenmanDurumu.get(userId) || 0;
-        mevcutSkor += 1;
-        if (mevcutSkor >= 10) { antrenmanDurumu.set(userId, 0); message.reply("🏋️ **10/10 Sıfırlandı!**"); } 
-        else { antrenmanDurumu.set(userId, mevcutSkor); message.reply(`🏋️ Gelişim: **${mevcutSkor}/10**`); }
-        cooldowns.set(`${userId}-ant`, simdi + (60 * 60 * 1000));
-    }
+    // --- .macdurdur ---
+    if (command === 'macdurdur') {
+        if (!message.member.roles.cache.has(TAKIM_YETKILI)) {
+            return message.reply('Maçı sadece <@&1522699609506316338> durdurabilir.');
+        }
 
-    // --- .pen Komutu ---
-    if (command === 'pen') {
-        const sonuclar = ["🧤 **Kurtarış!**", "🛡️ **Defans!**", "⚽ **GOOOL!**", "📐 **Direkt!**", "🏃‍♂️ **Dışarı!**"];
-        message.reply(sonuclar[Math.floor(Math.random() * sonuclar.length)]);
+        const mac = aktifMaclar.get(message.channel.id);
+        if (!mac) return message.reply('⚠️ Bu kanalda şu an aktif olarak oynanan bir maç bulunmuyor.');
+
+        if (mac.intervalId) clearInterval(mac.intervalId);
+
+        aktifMaclar.delete(message.channel.id);
+        message.reply(`🛑 **${mac.t1} vs ${mac.t2}** maçı yetkili tarafından durduruldu!`);
     }
 });
 
@@ -236,78 +234,145 @@ client.on('messageCreate', async (message) => {
 client.on('interactionCreate', async (interaction) => {
     if (!interaction.isButton()) return;
 
-    const [islem, veri1, veri2, veri3] = interaction.customId.split('_');
+    const tokens = interaction.customId.split('_');
+    const islem = tokens[0];
 
     // Oyuncu Ekleme Etkileşimleri
     if (islem === 'ilk11' || islem === 'yedek') {
-        const takim = takimlar.get(veri1);
+        const takim = takimlar.get(tokens[1]);
         if (!takim) return interaction.reply({ content: 'Takım verisi kayboldu.', ephemeral: true });
 
-        const oyuncuVeri = { id: veri2, mevki: veri3 };
+        const oyuncuVeri = { id: tokens[2], mevki: tokens[3].toUpperCase() };
 
         if (islem === 'ilk11') {
             takim.ilk11.push(oyuncuVeri);
-            await interaction.update({ content: `✅ <@${veri2}> oyuncusu [${veri3}] mevkisiyle **${takim.isim}** takımının **İlk 11** kadrosuna eklendi!`, components: [] });
+            await interaction.update({ content: `✅ <@${tokens[2]}> oyuncusu [${tokens[3]}] mevkisiyle **${takim.isim}** takımının **İlk 11** kadrosuna eklendi!`, components: [] });
         } else {
             takim.yedekler.push(oyuncuVeri);
-            await interaction.update({ content: `✅ <@${veri2}> oyuncusu [${veri3}] mevkisiyle **${takim.isim}** takımının **Yedekler** kadrosuna eklendi!`, components: [] });
+            await interaction.update({ content: `✅ <@${tokens[2]}> oyuncusu [${tokens[3]}] mevkisiyle **${takim.isim}** takımının **Yedekler** kadrosuna eklendi!`, components: [] });
         }
     }
 
     // Canlı Maç Başlatma Etkileşimi
     if (islem === 'ilkYari') {
-        const mac = aktifMaclar.get(veri2);
+        const t1Key = tokens[1];
+        const t2Key = tokens[2];
+        const kanalId = tokens[3];
+
+        const mac = aktifMaclar.get(kanalId);
         if (!mac || mac.durum !== 'bekliyor') return interaction.reply({ content: 'Bu maç zaten başlamış veya iptal edilmiş.', ephemeral: true });
 
         mac.durum = 'oyun-ici';
-        await interaction.update({ content: '⚽ İlk yarı başladı! Her 60 saniyede bir yeni pozisyon gelecek (Toplam 25 dakika sürer).', components: [] });
+        await interaction.update({ content: '⚽ Hakem düdüğünü çaldı ve büyük heyecan başladı!', components: [] });
 
-        const pozisyonlar = [
-            "⚽ **GOOOL!** Harika bir şut ve top ağlarda!",
-            "🏃‍♂️ **Dışarı!** Top az farkla auta çıkıyor.",
-            "📐 **Direkt!** Top direkte patladı!",
-            "🧤 **Kaleci!** Kaleci son anda topu kornere çeldi.",
-            "🛡️ **Defense!** Savunma son anda araya girdi ve tehlikeyi önledi.",
-            "🚩 **Korner!** Paslaşarak kullanılan korner savunmadan döndü.",
-            "🥅 **Aut!** Karşı takım oyunu aut atışıyla başlatıyor.",
-            "🏳️ **Tac!** Top taç çizgisine çıktı.",
-            "🎯 **Penalti!** Hakem beyaz noktayı gösterdi!",
-            "⚠️ **Faul!** Sert müdahale sonrası oyun durdu.",
-            "🩹 **Yerden kalk!** Sakatlanan oyuncu tedavi sonrası yerden kalktı.",
-            "🟥 **Kırmızı Kart!** Hakem cebinden kırmızı kart çıkardı!",
-            "🟨 **Sarı Kart!** Hakem sert faule sarı kart gösterdi."
-        ];
-
-        const macInterval = setInterval(async () => {
-            mac.dakika += 1;
+        // Oyuncu seçici yardımcı fonksiyon
+        const sutcuSec = (takimKey, varsayilanIsim) => {
+            const tk = takimlar.get(takimKey);
+            if (!tk) return varsayilanIsim;
+            const tumKadro = [...tk.ilk11, ...tk.yedekler];
+            const hucumcular = tumKadro.filter(p => p.mevki !== 'GK' && p.mevki !== 'KL');
             
-            const olay = pozisyonlar[Math.floor(Math.random() * pozisyonlar.length)];
-            
-            if (olay.includes("GOOOL")) {
-                if (Math.random() > 0.5) mac.skor1 += 1;
-                else mac.skor2 += 1;
+            if (hucumcular.length > 0) {
+                const secilen = hucumcular[Math.floor(Math.random() * hucumcular.length)];
+                return `<@${secilen.id}>`;
             }
+            return varsayilanIsim;
+        };
+
+        // --- Pozisyon Üretici Fonksiyon ---
+        const pozisyonOynat = () => {
+            const guncelMac = aktifMaclar.get(kanalId);
+            if (!guncelMac) return false;
+
+            const channel = client.channels.cache.get(kanalId);
+            if (!channel) return false;
+
+            guncelMac.dakika += 1;
+
+            // Atak yapan ve savunan takımları belirle
+            const atakYapanTakim = Math.random() > 0.5 ? "t1" : "t2";
+            const savunmaTakimi = atakYapanTakim === "t1" ? "t2" : "t1";
+
+            const atakTakimIsmi = atakYapanTakim === "t1" ? guncelMac.t1 : guncelMac.t2;
+            const savunmaTakimIsmi = savunmaTakimi === "t1" ? guncelMac.t1 : guncelMac.t2;
+
+            const aKey = atakYapanTakim === "t1" ? t1Key : t2Key;
+            const sKey = savunmaTakimi === "t1" ? t1Key : t2Key;
+
+            // Dinamik Oyuncu Seçimleri
+            const oyuncu = sutcuSec(aKey, `**${atakTakimIsmi} Oyuncusu**`);
+            const alanOyuncu = sutcuSec(aKey, `**${atakTakimIsmi} Takım Arkadaşı**`);
+            const rakipOyuncu = sutcuSec(sKey, `**${savunmaTakimIsmi} Defans Oyuncusu**`);
+
+            // Genişletilmiş Canlı Anlatım Havuzu
+            const aksiyonlar = [
+                { tip: "PAS", metin: `${oyuncu} orta alanda kusursuz bir **Kısa Pas** ile ${alanOyuncu} gördü.` },
+                { tip: "PAS", metin: `${oyuncu} savunmanın arkasına havadan nefis bir **Uzun Pas** yolladı, ${alanOyuncu} göğsüyle kontrol etti.` },
+                { tip: "ARA_PAS", metin: `${oyuncu} defans bloklarının arasına ince bir **Ara Pas** bıraktı, ${alanOyuncu} depar attı!` },
+                { tip: "KISA_ARA_PAS", metin: `${oyuncu} ceza sahası çizgisi üzerinde muazzam bir **Kısa Ara Pas** ile ${alanOyuncu} buluşturdu!` },
+                { tip: "UZUN_ARA_PAS", metin: `${oyuncu} kendi yarı sahasından derinlemesine mükemmel bir **Uzun Ara Pas** gönderdi, ${alanOyuncu} topla buluştu!` },
+                { tip: "SUT", metin: `${oyuncu} ceza sahası dışından kaleyi gördüğü an çok sert bir **ŞUT** çekti! Kaleci topu son anda kornere çeldi.` },
+                { tip: "GOL", metin: `⚽ **GOOOL!** ${oyuncu} yay üzerinden jeneriklik bir **ŞUT** çıkardı ve top çataldan ağlarla buluştu!` },
+                { tip: "KALECI_PAS", metin: `${oyuncu} (Kaleci) eliyle arkadaşına doğru temiz bir **Kaleci Pası** atarak atağı başlattı.` },
+                { tip: "HATA", metin: `💥 **HATA GELDİ!** ${oyuncu} geri pas verirken büyük bir hata yaptı! Araya giren ${rakipOyuncu} topu kaptı!` },
+                { tip: "DISARI", metin: `❌ ${oyuncu} pası ulaştırmak istedi ama şiddetini ayarlayamadı, top doğrudan **Dışarı Çıktı!**` }
+            ];
+
+            const rastgeleAksiyon = aksiyonlar[Math.floor(Math.random() * aksiyonlar.length)];
+            
+            // Skor Güncelleme
+            if (rastgeleAksiyon.tip === "GOL") {
+                if (atakYapanTakim === "t1") guncelMac.skor1 += 1;
+                else guncelMac.skor2 += 1;
+            }
+
+            // Top Kimde Alanının Dinamik Durumu
+            let topKimdeDurumu = alanOyuncu;
+            if (rastgeleAksiyon.tip === "GOL") topKimdeDurumu = "Top ağlarda! (Santra Yapılacak)";
+            if (rastgeleAksiyon.tip === "DISARI") topKimdeDurumu = "Top oyun alanı dışında (Taç/Aut)";
+            if (rastgeleAksiyon.tip === "HATA") topKimdeDurumu = rakipOyuncu; // Hata olunca top rakibe geçer
+            if (rastgeleAksiyon.tip === "SUT") topKimdeDurumu = "Rakip Kalecide";
 
             const pozisyonEmbed = new EmbedBuilder()
-                .setTitle(`📊 MAÇ DEVAM EDİYOR | Dakika: ${mac.dakika}'`)
-                .setDescription(`🏟️ **${mac.t1} ${mac.skor1} - ${mac.skor2} ${mac.t2}**\n\n**Gelişen Pozisyon:**\n${olay}`)
-                .setColor('#34495e');
+                .setTitle(`📊 CANLI ANLATIM | Dakika: ${guncelMac.dakika}'`)
+                .setDescription(
+                    `🏟️ **Skor:** ${guncelMac.t1} ${guncelMac.skor1} - ${guncelMac.skor2} ${guncelMac.t2}\n\n` +
+                    `🎙️ **Spiker:** ${rastgeleAksiyon.metin}\n\n` +
+                    `🏃‍♂️ **Topu Kimde:** ${topKimdeDurumu}`
+                )
+                .setColor(atakYapanTakim === "t1" ? '#3498db' : '#e67e22');
 
-            const channel = client.channels.cache.get(veri2);
-            if (channel) channel.send({ embeds: [pozisyonEmbed] });
+            channel.send({ embeds: [pozisyonEmbed] });
 
-            if (mac.dakika >= 25) {
-                clearInterval(macInterval);
+            // Maç bitiş kontrolü (25. pozisyon)
+            if (guncelMac.dakika >= 25) {
                 const bitisEmbed = new EmbedBuilder()
-                    .setTitle('🏁 MAÇ BİTTİ / MAÇ SONUCU')
-                    .setDescription(`🏆 **${mac.t1} ${mac.skor1} - ${mac.skor2} ${mac.t2}**\n\n90 Dakikalık harika simülasyon tamamlandı! Katılan tüm takımlara teşekkürler.`)
+                    .setTitle('🏁 MAÇ SONUCU / BÜYÜK DÜDÜK ÇALDI')
+                    .setDescription(`🏆 **Maç Skoru:** ${guncelMac.t1} ${guncelMac.skor1} - ${guncelMac.skor2} ${guncelMac.t2}\n\nNefesleri kesen 10 saniyelik seri canlı anlatım fırtınası sona erdi!`)
                     .setColor('#2ecc71');
-                if (channel) channel.send({ embeds: [bitisEmbed] });
-                aktifMaclar.delete(veri2);
+                channel.send({ embeds: [bitisEmbed] });
+                aktifMaclar.delete(kanalId);
+                return false;
             }
+            return true;
+        };
 
-        }, 60000); 
+        // 🚀 İLK MESAJ/POZİSYON ANINDA (0. Saniyede) GELSİN
+        const macDevamEdiyorMu = pozisyonOynat();
+
+        if (macDevamEdiyorMu) {
+            // ⏱️ Sonraki her mesaj tam 10 saniyede bir (10000 ms) tetiklenir
+            const macInterval = setInterval(() => {
+                const devam = pozisyonOynat();
+                if (!devam) {
+                    clearInterval(macInterval);
+                }
+            }, 10000); 
+
+            mac.intervalId = macInterval;
+        }
     }
 });
 
 client.login(process.env.TOKEN);
+            
