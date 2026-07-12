@@ -74,7 +74,7 @@ client.on('messageCreate', async (message) => {
         takimlar.set(takimAdi.toLowerCase(), {
             isim: takimAdi,
             kurucuId: hedef.id,
-            taktik: '4-4-2 Standart', // Varsayılan taktik
+            taktik: '4-4-2 Standart',
             ilk11: [],
             yedekler: []
         });
@@ -155,19 +155,15 @@ client.on('messageCreate', async (message) => {
         const takim = takimlar.get(takimAdi.toLowerCase());
         if (!takim) return message.reply('Böyle bir takım bulunamadı.');
 
-        // Eğer etiketse id'sini temizle, düz metinse ismi koru
         if (message.mentions.users.first()) {
             oyuncuAdı = `<@${message.mentions.users.first().id}>`;
         }
 
-        // --- İLK 11 DOLULUK KONTROLÜ ---
         if (takim.ilk11.length >= 11) {
-            // İlk 11 doluysa otomatik yedeğe at
             takim.yedekler.push({ isim: oyuncuAdı, mevki: mevki.toUpperCase() });
             return message.reply(`⚠️ **${takim.isim}** takımının İlk 11 kadrosu dolu (**11/11**)! **${oyuncuAdı}** [${mevki.toUpperCase()}] otomatik olarak **Yedekler** kadrosuna eklendi.`);
         }
 
-        // İlk 11 müsaitse direkt ekle (Butona gerek kalmadı, sistem otomatik akıyor)
         takim.ilk11.push({ isim: oyuncuAdı, mevki: mevki.toUpperCase() });
         message.reply(`✅ **${oyuncuAdı}** [${mevki.toUpperCase()}] oyuncusu **${takim.isim}** takımının **İlk 11** kadrosuna başarıyla eklendi!`);
     }
@@ -236,10 +232,8 @@ client.on('messageCreate', async (message) => {
 
         if (!takim1 || !takim2) return message.reply('Maçı başlatmak için iki takımın da kurulmuş olması gerekir!');
 
-        // Benzersiz Maç Anahtarı oluştur (Örn: fenerbahçe_galatasaray)
         const macKey = `${t1Isim}_${t2Isim}`;
 
-        // Zaten oynanan bir maç var mı kontrol et
         for (const [id, m] of aktifMaclar.entries()) {
             if (m.key === macKey) return message.reply('⚠️ Bu iki takım arasında zaten devam eden bir maç var!');
         }
@@ -324,7 +318,6 @@ client.on('interactionCreate', async (interaction) => {
 
         const channel = client.channels.cache.get(kanalId);
 
-        // Dinamik kadrodan oyuncu seçen fonksiyon
         const oyuncuSec = (takimKey, varsayilanIsim) => {
             const tk = takimlar.get(takimKey);
             if (!tk || tk.ilk11.length === 0) return varsayilanIsim;
@@ -332,12 +325,11 @@ client.on('interactionCreate', async (interaction) => {
             return secilen.isim;
         };
 
-        // --- POZİSYON SİMÜLATÖRÜ ---
         const pozisyonOynat = () => {
             const guncelMac = aktifMaclar.get(fullKey);
             if (!guncelMac) return false;
 
-            guncelMac.dakika += 4; // 40 saniyelik tempolu süre için her turda dakika hızlı akar
+            guncelMac.dakika += 4;
 
             const atakYapan = Math.random() > 0.5 ? "t1" : "t2";
             const savunma = atakYapan === "t1" ? "t2" : "t1";
@@ -347,12 +339,10 @@ client.on('interactionCreate', async (interaction) => {
 
             const tkAtak = takimlar.get(aKey);
 
-            // Kadrodan Dinamik Kişiler
             const pasor = oyuncuSec(aKey, `**${atakYapan === "t1" ? guncelMac.t1 : guncelMac.t2} Orta Sahası**`);
             const hucumcu = oyuncuSec(aKey, `**${atakYapan === "t1" ? guncelMac.t1 : guncelMac.t2} Forveti**`);
             const defans = oyuncuSec(sKey, `**${savunma === "t1" ? guncelMac.t1 : guncelMac.t2} Defansı**`);
 
-            // Maç İçi Aksiyon Listesi (İstenen Tüm Paslar ve Durumlar Dahil)
             const aksiyonlar = [
                 { tip: "KISA_PAS", metin: `🏃‍♂️ ${pasor} orta alanda harika bir **Kısa Pas** çıkarttı, topu alan ${hucumcu} ileri fırladı!`, topKimde: hucumcu },
                 { tip: "UZUN_PAS", metin: `🚀 Savunmadan ileriye doğru **Uzun Pas**! ${pasor} topu doğrudan ${hucumcu} indirdi.`, topKimde: hucumcu },
@@ -370,13 +360,11 @@ client.on('interactionCreate', async (interaction) => {
                     golcu: hucumcu,
                     topKimde: "Top Ağlarda! (Santra)"
                 },
-                // --- OYUNCU DEĞİŞİKLİĞİ SİSTEMİ (GERÇEKÇİ ENTEGRASYON) ---
-                { tip: "DEGISIKLIK", metin: `🔄 **Oyuncu Değişikliği!** ${atakYapan === "t1" ? guncelMac.t1 : guncelMac.t2} takımında teknik direktör taktiksel bir hamle yapıyor ve yorulan bir oyuncuyu kulübeye çekiyor!`, topKimde: pasor }
+                { tip: "DEGISIKLIK", metin: `🔄 **Oyuncu Değişikliği!** ${atakYapan === "t1" ? guncelMac.t1 : guncelMac.t2} takımında teknik direktör taktiksel bir hamle yapıyor!`, topKimde: pasor }
             ];
 
             let secilenAksiyon = aksiyonlar[Math.floor(Math.random() * aksiyonlar.length)];
 
-            // Eğer oyuncu değişikliği tetiklendiyse ve yedek kulübesinde oyuncu varsa ilk 11'i güncelle!
             if (secilenAksiyon.tip === "DEGISIKLIK" && tkAtak && tkAtak.yedekler.length > 0 && tkAtak.ilk11.length > 0) {
                 const rIndexIlk11 = Math.floor(Math.random() * tkAtak.ilk11.length);
                 const rIndexYedek = Math.floor(Math.random() * tkAtak.yedekler.length);
@@ -384,21 +372,18 @@ client.on('interactionCreate', async (interaction) => {
                 const cikanOyuncu = tkAtak.ilk11[rIndexIlk11];
                 const girenOyuncu = tkAtak.yedekler[rIndexYedek];
 
-                // Takas et
                 tkAtak.ilk11[rIndexIlk11] = girenOyuncu;
                 tkAtak.yedekler[rIndexYedek] = cikanOyuncu;
 
-                secilenAksiyon.metin = `🔄 **OYUNCU DEĞİŞİKLİĞİ!** **${tkAtak.isim}** takımında kenara tabelası kalktı.\n🔻 Çıkan Oyuncu: **${cikanOyuncu.isim}** [${cikanOyuncu.mevki}]\n🔺 Giren Oyuncu: **${girenOyuncu.isim}** [${girenOyuncu.mevki}]`;
+                secilenAksiyon.metin = `🔄 **OYUNCU DEĞİŞİKLİĞİ!** **${tkAtak.isim}** takımında kenara tabela kalktı.\n🔻 Çıkan Oyuncu: **${cikanOyuncu.isim}** [${cikanOyuncu.mevki}]\n🔺 Giren Oyuncu: **${girenOyuncu.isim}** [${girenOyuncu.mevki}]`;
                 secilenAksiyon.topKimde = girenOyuncu.isim;
             }
 
-            // Gol skoru yansıtma
             if (secilenAksiyon.tip === "GOL") {
                 if (atakYapan === "t1") guncelMac.skor1 += 1;
                 else guncelMac.skor2 += 1;
             }
 
-            // Canlı Anlatım Kartı
             const pozisyonEmbed = new EmbedBuilder()
                 .setTitle(`📊 CANLI ANLATIM | Dakika: ${guncelMac.dakika}'`)
                 .setDescription(
@@ -414,7 +399,6 @@ client.on('interactionCreate', async (interaction) => {
 
             if (channel) channel.send({ embeds: [pozisyonEmbed] });
 
-            // Maç Bitiş Kontrolü (90. Dakika)
             if (guncelMac.dakika >= 90) {
                 const bitisEmbed = new EmbedBuilder()
                     .setTitle('🏁 MAÇ SONUCU / HAKEM MAÇI BİTİRDİ')
@@ -427,10 +411,18 @@ client.on('interactionCreate', async (interaction) => {
             return true;
         };
 
-        // 🚀 1. Pozisyon Hemen Gelsin (0. Saniye)
         const devamEdiyor = pozisyonOynat();
 
         if (devamEdiyor) {
-            // ⏱️ İstediğin gibi sonraki pozisyonlar TAM 40 saniyede bir (40000 ms) akar!
             const interval = setInterval(() => {
-                const d = pozisyonOy
+                const d = pozisyonOynat();
+                if (!d) clearInterval(interval);
+            }, 40000);
+
+            mac.intervalId = interval;
+        }
+    }
+});
+
+client.login(process.env.TOKEN);
+            
