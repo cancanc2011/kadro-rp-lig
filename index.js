@@ -2,11 +2,9 @@ const {
     Client, 
     GatewayIntentBits, 
     EmbedBuilder, 
-    PermissionsBitField, 
     ActionRowBuilder, 
     ButtonBuilder, 
-    ButtonStyle, 
-    ChannelType 
+    ButtonStyle 
 } = require('discord.js');
 const http = require('http');
 
@@ -26,40 +24,40 @@ const client = new Client({
 });
 
 const PREFIX = '.';
-const YETKILI_ROL_ID = '1522277920083677376'; 
-
-// --- YENİ ROL ID'LERİ ---
+// --- ROL ID'LERİ ---
 const TRANSFER_YETKILI_1 = '1522697217264062656';
 const TRANSFER_YETKILI_2 = '1522696820751601685';
 const TAKIM_YETKILI = '1522699609506316338';
 
 // Veritabanı simülasyonları
-const ekonomi = new Map(); 
 const antrenmanDurumu = new Map(); 
 const cooldowns = new Map(); 
 
 // --- TAKIM VE MAÇ SİSTEMİ VERİLERİ ---
-const takimlar = new Map(); // 'Fenerbahçe' -> { kurucuId: 'id', ilk11: [], yedekler: [] }
-const aktifMaclar = new Map(); // channelId -> { takim1: 'Fener', takim2: 'Gs', dakika: 0, skor1: 0, skor2: 0, interval: null }
+const takimlar = new Map(); 
+const aktifMaclar = new Map(); 
 
-function bakiyeGetir(userId) {
-    if (!ekonomi.has(userId)) {
-        ekonomi.set(userId, { cash: 100, bank: 0 }); 
-    }
-    return ekonomi.get(userId);
-}
-
-client.once('ready', async () => {
+client.once('ready', () => {
     console.log(`${client.user.tag} aktif!`);
-    const guildId = client.guilds.cache.first()?.id; 
-    if (guildId) {
-        const guild = client.guilds.cache.get(guildId);
-        await guild.commands.set([{ name: 'ticket-kurulum', description: 'Butonlu ticket sistemini kurar.' }]);
-    }
 });
 
 client.on('messageCreate', async (message) => {
-    if (message.author.bot || !message.content.startsWith(PREFIX)) return;
+    if (message.author.bot) return;
+
+    // --- 📚 Sadece -yardim Komutu ---
+    if (message.content.trim().toLowerCase() === '-yardim' || message.content.trim().toLowerCase() === '-yardım') {
+        const embed = new EmbedBuilder()
+            .setTitle('📚 SUNUCU SİSTEM REHBERİ')
+            .setDescription(`Merhaba **${message.author.username}**, sunucudaki tüm aktif komutlar aşağıda listelenmiştir:`)
+            .addFields(
+                { name: '⚽ Futbol / Takım Komutları', value: '`.takimkur @kisi Fener` | `.takimlist` | `.takimsil Fener` | `.oyuncual @kisi Fener SNT` | `.oyuncucikar @kisi Fener` | `.kadro Fener`', inline: false },
+                { name: '🏟️ Maç Sistemi', value: '`.macbaslat Fener vs Cimbom` (Sadece Maç Yetkilisi başlatabilir)', inline: false },
+                { name: '🏃‍♂️ Eğlence', value: '`.ant` | `.pen`', inline: false }
+            ).setColor('#3498db');
+        return message.reply({ embeds: [embed] });
+    }
+
+    if (!message.content.startsWith(PREFIX)) return;
 
     const args = message.content.slice(PREFIX.length).trim().split(/ +/);
     const command = args.shift().toLowerCase();
@@ -98,12 +96,12 @@ client.on('messageCreate', async (message) => {
         message.reply(`📋 **Kurulan Takımlar ve Sahipleri:**\n${liste}`);
     }
 
-    // --- .takimsil <@kullanici> <Takım Adı> ---
+    // --- .takimsil <Takım Adı> ---
     if (command === 'takimsil') {
         if (!message.member.roles.cache.has(TAKIM_YETKILI)) {
             return message.reply('Bu komutu sadece <@&1522699609506316338> rolündekiler kullanabilir.');
         }
-        const takimAdi = args.slice(1).join(' ');
+        const takimAdi = args.join(' ');
         if (!takimAdi || !takimlar.has(takimAdi.toLowerCase())) return message.reply('Böyle bir takım bulunamadı.');
 
         takimlar.delete(takimAdi.toLowerCase());
@@ -123,7 +121,6 @@ client.on('messageCreate', async (message) => {
         const takim = takimlar.get(takimAdi.toLowerCase());
         if (!takim) return message.reply('Böyle bir takım bulunamadı. Önce takımı kurmalısınız.');
 
-        // Kadro Türü Seçimi İçin Butonlar
         const row = new ActionRowBuilder().addComponents(
             new ButtonBuilder().setCustomId(`ilk11_${takimAdi.toLowerCase()}_${hedef.id}_${mevki}`).setLabel('İlk 11\'e Ekle').setStyle(ButtonStyle.Success),
             new ButtonBuilder().setCustomId(`yedek_${takimAdi.toLowerCase()}_${hedef.id}_${mevki}`).setLabel('Yedeklere Ekle').setStyle(ButtonStyle.Primary)
@@ -202,7 +199,6 @@ client.on('messageCreate', async (message) => {
             new ButtonBuilder().setCustomId(`ilkYari_15_${message.channel.id}`).setLabel('⏱️ İlk Yarıyı Başlat (15 Dk)').setStyle(ButtonStyle.Danger)
         );
 
-        // Maç verisini oluşturup saklıyoruz
         aktifMaclar.set(message.channel.id, {
             t1: takim1.isim,
             t2: takim2.isim,
@@ -215,19 +211,7 @@ client.on('messageCreate', async (message) => {
         message.reply({ embeds: [embed], components: [row] });
     }
 
-    // ==========================================
-    // OLD EKONOMİ & YARDIM SİSTEMİ
-    // ==========================================
-    if (command === 'yardim' || command === 'yardım') {
-        const embed = new EmbedBuilder()
-            .setTitle('📚 SUNUCU SİSTEM REHBERİ')
-            .addFields(
-                { name: '⚽ Futbol / Takım', value: '`.takimkur @kisi Fener` | `.takimlist` | `.oyuncual @kisi Fener SNT` | `.kadro Fener` | `.macbaslat Fener vs Cimbom`', inline: false },
-                { name: '💰 Ekonomi / Mini Oyun', value: '`.bal` | `.send @kisi 50` | `.ant` | `.pen`', inline: false }
-            ).setColor('#3498db');
-        message.reply({ embeds: [embed] });
-    }
-
+    // --- .ant Komutu ---
     if (command === 'ant') {
         const simdi = Date.now();
         const cd = cooldowns.get(`${userId}-ant`) || 0;
@@ -239,14 +223,10 @@ client.on('messageCreate', async (message) => {
         cooldowns.set(`${userId}-ant`, simdi + (60 * 60 * 1000));
     }
 
+    // --- .pen Komutu ---
     if (command === 'pen') {
         const sonuclar = ["🧤 **Kurtarış!**", "🛡️ **Defans!**", "⚽ **GOOOL!**", "📐 **Direkt!**", "🏃‍♂️ **Dışarı!**"];
         message.reply(sonuclar[Math.floor(Math.random() * sonuclar.length)]);
-    }
-
-    if (command === 'bal') {
-        const userPara = bakiyeGetir(userId);
-        message.reply(`💵 Cash: ${userPara.cash} 🪙 | Banka: ${userPara.bank} 🪙`);
     }
 });
 
@@ -258,7 +238,7 @@ client.on('interactionCreate', async (interaction) => {
 
     const [islem, veri1, veri2, veri3] = interaction.customId.split('_');
 
-    // --- Oyuncu Ekleme Butonları ---
+    // Oyuncu Ekleme Etkileşimleri
     if (islem === 'ilk11' || islem === 'yedek') {
         const takim = takimlar.get(veri1);
         if (!takim) return interaction.reply({ content: 'Takım verisi kayboldu.', ephemeral: true });
@@ -274,7 +254,7 @@ client.on('interactionCreate', async (interaction) => {
         }
     }
 
-    // --- Maç Başlatma Butonu (Gerçek Zamanlı Simülasyon) ---
+    // Canlı Maç Başlatma Etkileşimi
     if (islem === 'ilkYari') {
         const mac = aktifMaclar.get(veri2);
         if (!mac || mac.durum !== 'bekliyor') return interaction.reply({ content: 'Bu maç zaten başlamış veya iptal edilmiş.', ephemeral: true });
@@ -298,20 +278,16 @@ client.on('interactionCreate', async (interaction) => {
             "🟨 **Sarı Kart!** Hakem sert faule sarı kart gösterdi."
         ];
 
-        // Gerçek zamanlı dakika döngüsü (Her 60 saniyede 1 dakika ilerler)
         const macInterval = setInterval(async () => {
             mac.dakika += 1;
             
-            // Rastgele olay seçimi
             const olay = pozisyonlar[Math.floor(Math.random() * pozisyonlar.length)];
             
-            // Eğer gol olursa rastgele bir takıma yaz
             if (olay.includes("GOOOL")) {
                 if (Math.random() > 0.5) mac.skor1 += 1;
                 else mac.skor2 += 1;
             }
 
-            // Ayrı mesaj olarak her dakika başı rapor
             const pozisyonEmbed = new EmbedBuilder()
                 .setTitle(`📊 MAÇ DEVAM EDİYOR | Dakika: ${mac.dakika}'`)
                 .setDescription(`🏟️ **${mac.t1} ${mac.skor1} - ${mac.skor2} ${mac.t2}**\n\n**Gelişen Pozisyon:**\n${olay}`)
@@ -320,7 +296,6 @@ client.on('interactionCreate', async (interaction) => {
             const channel = client.channels.cache.get(veri2);
             if (channel) channel.send({ embeds: [pozisyonEmbed] });
 
-            // 25. Dakikada maçı bitir
             if (mac.dakika >= 25) {
                 clearInterval(macInterval);
                 const bitisEmbed = new EmbedBuilder()
@@ -331,9 +306,8 @@ client.on('interactionCreate', async (interaction) => {
                 aktifMaclar.delete(veri2);
             }
 
-        }, 60000); // 60 Saniye = 1 Gerçek Dakika
+        }, 60000); 
     }
 });
 
 client.login(process.env.TOKEN);
-            
