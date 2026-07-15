@@ -453,10 +453,11 @@ const pozisyonOynat = (fullKey, channel) => {
     }
 
     // 3. Kırmızı Kart Durumunda Oyuncu Eksiltme
-if (secilen.kart && secilen.cezaAlan && tkSavunma && ...
-    tkSavunma.ilk11 = tkSavunma.ilk11.filter(p => p.is...
-    secilen.metin += `\n\n🔴 **${secilen.cezaAlan}**...
+if (secilen.kart && secilen.cezaAlan && tkSavunma) {
+    tkSavunma.ilk11 = tkSavunma.ilk11.filter(p => p.isim !== secilen.cezaAlan);
+    secilen.metin += `\n\n🔴 **${secilen.cezaAlan}** kırmızı kart gördü ve oyundan atıldı!`;
 }
+
 
 
     // Değerleri Güncelle
