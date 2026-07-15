@@ -66,7 +66,7 @@ client.on('messageCreate', async (message) => {
             .setTitle('📚 SUNUCU SİSTEM REHBERİ')
             .setDescription(`Merhaba **${message.author.username}**, sunucudaki tüm aktif komutlar aşağıda listelenmiştir:`)
             .addFields(
-                { name: '⚽ Takım & Kadro Komutları', value: '`.takimkur @kisi Fener` | `.takimlist` | `.takimsil Fener` | `.oyuncual Osimhen Beşiktaş SNT` | `.oyuncucikar Osimhen Beşiktaş` | `.kadro Fener` | `.taktik Fener 4-3-3 Ofansif`', inline: false },
+                { name: '⚽ Takım & Kadro Komutları', value: '`.takimkur @kisi Fener` | `.takimlist` | `.takimsil Fener`  | `.taktikekle Fener` | `.oyuncual Osimhen Beşiktaş SNT` | `.oyuncucikar Osimhen Beşiktaş` | `.kadro Fener` | `.taktik Fener 4-3-3 Ofansif`', inline: false },
                 { name: '🏟️ Maç Sistemi', value: '`.macbaslat Fener vs Cimbom` | `.macdurdur Fener vs Cimbom` (Sadece Maç Yetkilisi)', inline: false }
             ).setColor('#3498db');
         return message.reply({ embeds: [embed] });
@@ -453,10 +453,11 @@ const pozisyonOynat = (fullKey, channel) => {
     }
 
     // 3. Kırmızı Kart Durumunda Oyuncu Eksiltme
-    if (secilen.kart && secilen.cezaAlan && tkSavunma && tkSavunma.ilk11.length > 0) {
-        tkSavunma.ilk11 = tkSavunma.ilk11.filter(p => p.isim !== secilen.cezaAlan);
-        secilen.metin += `\n\n🔴 **${secilen.cezaAlan}** takımını 10 kişi bıraktı! Tribünler çıldırdı!`;
-    }
+if (secilen.kart && secilen.cezaAlan && tkSavunma && ...
+    tkSavunma.ilk11 = tkSavunma.ilk11.filter(p => p.is...
+    secilen.metin += `\n\n🔴 **${secilen.cezaAlan}**...
+}
+
 
     // Değerleri Güncelle
     guncelMac.topSahibi = secilen.yeniTopcu;
@@ -540,6 +541,53 @@ client.on('interactionCreate', async (interaction) => {
             if (!devam) clearInterval(mac.intervalId);
         }, 15000); // 15 saniye ayarlandı
     }
+    // --- .taktikekle [Takım Adı] - [Taktik Detayı] ---
+if (command === 'taktikekle') {
+    // Mesaj içeriğini '-' işaretine göre bölüyoruz (Örn: .taktikekle Real Madrid - 4-3-3 Ofansif)
+    const girdi = args.join(' ').split('-');
+    if (girdi.length < 2) return message.reply('Kullanım: `.taktikekle [Takım Adı] - [Taktik Detayı]`\nÖrnek: `.taktikekle Real Madrid - 4-3-3 Ofansif`');
+
+    const arananTakimAdi = girdi[0].trim().toLowerCase();
+    const yeniTaktik = girdi[1].trim();
+
+    const dosyaYolu = './takimlar.json';
+    let kayitliTakimlar = {};
+
+    if (fs.existsSync(dosyaYolu)) {
+        try { kayitliTakimlar = JSON.parse(fs.readFileSync(dosyaYolu, 'utf8')); } catch (e) { kayitliTakimlar = {}; }
+    }
+
+    const takim = kayitliTakimlar[arananTakimAdi];
+    if (!takim) return message.reply('Böyle bir takım bulunamadı! Lütfen takım adını doğru yazdığınızdan emin olun.');
+
+    // GÜVENLİK KONTROLÜ: Komutu yazan kişi takımın sahibi mi? VEYA Yetkili Rol ID'sine sahip mi?
+    const yetkiliMi = message.member.roles.cache.has(YETKILI_ROL_ID);
+    const takiminSahibiMi = takim.kurucuId === userId;
+
+    if (!takiminSahibiMi && !yetkiliMi) {
+        return message.reply('❌ Bu takımın başkanı veya yetkilisi değilsiniz! Başka bir takımın taktiğini değiştiremezsiniz.');
+    }
+
+    // Taktiği güncelle
+    takim.taktik = yeniTaktik;
+    kayitliTakimlar[arananTakimAdi] = takim;
+    
+    // Map yapısını da güncel tutalım
+    takimlar.set(arananTakimAdi, takim);
+
+    // Dosyaya kaydet
+    fs.writeFileSync(dosyaYolu, JSON.stringify(kayitliTakimlar, null, 4));
+
+    const taktikEmbed = new EmbedBuilder()
+        .setTitle('📋 TAKTİK GÜNCELLENDİ')
+        .setDescription(`⚽ **Takım:** \`${takim.isim}\`\n👤 **Güncelleyen:** ${message.author}\n⚙️ **Yeni Belirlenen Taktik:** \`${yeniTaktik}\``)
+        .setFooter({ text: 'Taktik başarıyla takım şablonuna işlendi!' })
+        .setColor('#2ecc71');
+
+    return message.reply({ embeds: [taktikEmbed] });
+                                    
+                    
+}
 });
 
 client.login(process.env.TOKEN);
