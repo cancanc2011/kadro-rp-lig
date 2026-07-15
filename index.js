@@ -377,5 +377,6 @@ function YazCezayi(oyuncuIsmi, sebep) {
     fs.writeFileSync('./cezalar.json', JSON.stringify(cezalar, null, 4));
 }
 
-client.login("BOTUNUN_TOKEN_KODUNU_BURAYA_YAZ"); // Buraya kendi Discord Bot Token kodunu yazmayı unutma kanka!
-        
+
+client.login(process.env.DISCORD_TOKEN);
+
