@@ -1,594 +1,381 @@
-const { 
-    Client, 
-    GatewayIntentBits, 
-    EmbedBuilder, 
-    ActionRowBuilder, 
-    ButtonBuilder, 
-    ButtonStyle 
-} = require('discord.js');
-const http = require('http');
-
-// 7/24 Aktif Kalma Sunucusu
-http.createServer((req, res) => {
-    res.write("Bot 7/24 Aktif!");
-    res.end();
-}).listen(process.env.PORT || 3000);
+const { Client, GatewayIntentBits, EmbedBuilder } = require('discord.js');
+const fs = require('fs');
 
 const client = new Client({
     intents: [
         GatewayIntentBits.Guilds,
         GatewayIntentBits.GuildMessages,
-        GatewayIntentBits.MessageContent,
-        GatewayIntentBits.GuildMembers
+        GatewayIntentBits.MessageContent
     ]
 });
 
-const PREFIX = '.';
-const TRANSFER_YETKILI_1 = '1522697217264062656';
-const TRANSFER_YETKILI_2 = '1522696820751601685';
-const TAKIM_YETKILI = '1522699609506316338';
+// --- AYARLAR VE KLASÖR KONTROLLERİ ---
+const PREFIX = ".";
+const YETKILI_ROL_ID = "YETKILI_ROL_IDSINI_BURAYA_YAZ"; // Buraya yetkili rol ID'sini yapıştır kanka
 
-const takimlar = new Map(); 
-const aktifMaclar = new Map(); 
+// JSON dosyalarının varlığını kontrol et, yoksa boş oluştur
+const dosyaKontrol = (dosyaYolu) => {
+    if (!fs.existsSync(dosyaYolu)) {
+        fs.writeFileSync(dosyaYolu, JSON.stringify({}, null, 4));
+    }
+};
+dosyaKontrol('./takimlar.json');
+dosyaKontrol('./cezalar.json');
 
+// Bellek içi aktif takımlar ve maçlar
+const takimlar = new Map();
+
+// --- 📂 BOT AÇILIŞINDA TAKIMLARI GERİ YÜKLEME ---
 client.once('ready', () => {
-    console.log(`${client.user.tag} aktif ve gerçekçi derbi motoru hazır!`);
+    console.log(`🤖 Bot ${client.user.tag} olarak giriş yaptı!`);
+    
+    try {
+        const kayitliTakimlar = JSON.parse(fs.readFileSync('./takimlar.json', 'utf8'));
+        for (let key in kayitliTakimlar) {
+            takimlar.set(key, kayitliTakimlar[key]);
+        }
+        console.log("📂 Kayıtlı tüm takımlar başarıyla dosyadan yüklendi!");
+    } catch (e) {
+        console.error("Takımlar dosyadan yüklenirken hata oluştu:", e);
+    }
 });
 
-// Yardımcı Fonksiyon: Mevkisine Göre Rastgele Oyuncu Seçimi
-const oyuncuSecMevki = (takimKey, bolge, varsayilanIsim) => {
-    const tk = takimlar.get(takimKey);
-    if (!tk || !tk.ilk11 || tk.ilk11.length === 0) return varsayilanIsim;
-    
-    // Bölgelere göre mevkileri filtrele
-    let filtrelenmis = [];
-    if (bolge === "DEFANS") {
-        filtrelenmis = tk.ilk11.filter(p => ["DEF", "STP", "OSB", "SLB"].includes(p.mevki));
-    } else if (bolge === "ORTASAHA") {
-        filtrelenmis = tk.ilk11.filter(p => ["OS", "DOS", "MOS", "OOS", "KANAT"].includes(p.mevki));
-    } else if (bolge === "HUCUM") {
-        filtrelenmis = tk.ilk11.filter(p => ["SNT", "FOR", "FW", "KANAT"].includes(p.mevki));
-    } else if (bolge === "KALECI") {
-        filtrelenmis = tk.ilk11.filter(p => ["KL", "KLV", "KALECI"].includes(p.mevki));
-    }
-
-    if (filtrelenmis.length === 0) {
-        return tk.ilk11[Math.floor(Math.random() * tk.ilk11.length)].isim;
-    }
-    return filtrelenmis[Math.floor(Math.random() * filtrelenmis.length)].isim;
-};
-
+// --- 📩 MESAJ GELİNCE ÇALIŞACAK KOMUTLAR ---
 client.on('messageCreate', async (message) => {
-    if (message.author.bot) return;
-
-    if (message.content.trim().toLowerCase() === '-yardim' || message.content.trim().toLowerCase() === '-yardım') {
-        const embed = new EmbedBuilder()
-            .setTitle('📚 SUNUCU SİSTEM REHBERİ')
-            .setDescription(`Merhaba **${message.author.username}**, sunucudaki tüm aktif komutlar aşağıda listelenmiştir:`)
-            .addFields(
-                { name: '⚽ Takım & Kadro Komutları', value: '`.takimkur @kisi Fener` | `.takimlist` | `.takimsil Fener`  | `.taktikekle Fener` | `.oyuncual Osimhen Beşiktaş SNT` | `.oyuncucikar Osimhen Beşiktaş` | `.kadro Fener` | `.taktik Fener 4-3-3 Ofansif`', inline: false },
-                { name: '🏟️ Maç Sistemi', value: '`.macbaslat Fener vs Cimbom` | `.macdurdur Fener vs Cimbom` (Sadece Maç Yetkilisi)', inline: false }
-            ).setColor('#3498db');
-        return message.reply({ embeds: [embed] });
-    }
-
-    if (!message.content.startsWith(PREFIX)) return;
+    if (message.author.bot || !message.content.startsWith(PREFIX)) return;
 
     const args = message.content.slice(PREFIX.length).trim().split(/ +/);
     const command = args.shift().toLowerCase();
+    const userId = message.author.id;
 
+    // ==========================================
+    // ⚔️ KOMUT 1: .takimkur @kullanici Takım Adı
+    // ==========================================
     if (command === 'takimkur') {
-        if (!message.member.roles.cache.has(TAKIM_YETKILI)) {
-            return message.reply('Bu komutu sadece <@&1522699609506316338> rolündekiler kullanabilir.');
+        if (!message.member.roles.cache.has(YETKILI_ROL_ID)) {
+            return message.reply('❌ Bu komutu kullanmak için yetkiniz yok.');
         }
+        
         const hedef = message.mentions.users.first();
         const takimAdi = args.slice(1).join(' ');
+        
+        if (!hedef || !takimAdi) {
+            return message.reply('👉 Kullanım: `.takimkur @kullanici TakımAdı`');
+        }
 
-        if (!hedef || !takimAdi) return message.reply('Kullanım: `.takimkur @kullanici TakımAdı`');
+        const takimKey = takimAdi.toLowerCase();
+        let kayitliTakimlar = JSON.parse(fs.readFileSync('./takimlar.json', 'utf8'));
 
-        takimlar.set(takimAdi.toLowerCase(), {
-            isim: takimAdi,
-            kurucuId: hedef.id,
-            taktik: '4-4-2 Standart',
-            ilk11: [],
-            yedekler: []
+        if (kayitliTakimlar[takimKey]) {
+            return message.reply('⚠️ Bu isimde bir takım zaten kurulmuş!');
+        }
+
+        // Yeni takım şablonu (11 adet varsayılan oyuncu)
+        const yeniTakim = { 
+            isim: takimAdi, 
+            kurucuId: hedef.id, 
+            taktik: 'Belirlenmedi', 
+            oyuncular: [
+                "Oyuncu 1", "Oyuncu 2", "Oyuncu 3", "Oyuncu 4", "Oyuncu 5", 
+                "Oyuncu 6", "Oyuncu 7", "Oyuncu 8", "Oyuncu 9", "Oyuncu 10", "Kaleci"
+            ] 
+        };
+
+        takimlar.set(takimKey, yeniTakim);
+        kayitliTakimlar[takimKey] = yeniTakim;
+        fs.writeFileSync('./takimlar.json', JSON.stringify(kayitliTakimlar, null, 4));
+
+        return message.reply(`✅ **${takimAdi}** takımı kuruldu! Takım Sahibi (Başkan): ${hedef}`);
+    }
+
+    // ==========================================
+    // 📋 KOMUT 2: .taktikekle Takım Adı - Taktik Detayı
+    // ==========================================
+    if (command === 'taktikekle') {
+        const girdi = args.join(' ').split('-');
+        if (girdi.length < 2) {
+            return message.reply('👉 Kullanım: `.taktikekle [Takım Adı] - [Taktik Detayı]`\nÖrn: `.taktikekle Real Madrid - 4-3-3 Ofansif / Kısa Pas`');
+        }
+
+        const arananTakimAdi = girdi[0].trim().toLowerCase();
+        const yeniTaktik = girdi[1].trim();
+
+        let kayitliTakimlar = JSON.parse(fs.readFileSync('./takimlar.json', 'utf8'));
+        const takim = kayitliTakimlar[arananTakimAdi];
+
+        if (!takim) {
+            return message.reply('❌ Böyle bir takım bulunamadı! Takım adını doğru yazdığınızdan emin olun.');
+        }
+
+        const yetkiliMi = message.member.roles.cache.has(YETKILI_ROL_ID);
+        const takiminSahibiMi = takim.kurucuId === userId;
+
+        if (!takiminSahibiMi && !yetkiliMi) {
+            return message.reply('❌ Bu takımın sahibi veya teknik direktörü değilsiniz!');
+        }
+
+        takim.taktik = yeniTaktik;
+        kayitliTakimlar[arananTakimAdi] = takim;
+        takimlar.set(arananTakimAdi, takim);
+
+        fs.writeFileSync('./takimlar.json', JSON.stringify(kayitliTakimlar, null, 4));
+
+        const taktikEmbed = new EmbedBuilder()
+            .setTitle('📋 TAKTİK GÜNCELLENDİ')
+            .setDescription(`⚽ **Takım:** \`${takim.isim}\`\n👤 **Güncelleyen:** ${message.author}\n⚙️ **Yeni Belirlenen Taktik:** \`${yeniTaktik}\``)
+            .setFooter({ text: 'Taktik başarıyla takım şablonuna işlendi!' })
+            .setColor('#2ecc71');
+
+        return message.reply({ embeds: [taktikEmbed] });
+    }
+
+    // ==========================================
+    // ⚽ KOMUT 3: .mac Takım1 - Takım2 (Maç Başlatma)
+    // ==========================================
+    if (command === 'mac') {
+        const girdi = args.join(' ').split('-');
+        if (girdi.length < 2) return message.reply('👉 Kullanım: `.mac Takım1 - Takım2`');
+
+        const t1Key = girdi[0].trim().toLowerCase();
+        const t2Key = girdi[1].trim().toLowerCase();
+
+        let kayitliTakimlar = JSON.parse(fs.readFileSync('./takimlar.json', 'utf8'));
+        let takim1 = kayitliTakimlar[t1Key];
+        let takim2 = kayitliTakimlar[t2Key];
+
+        if (!takim1 || !takim2) return message.reply('❌ Girdiğiniz takımlardan biri veya ikisi bulunamadı!');
+
+        // --- 🛡️ CEZALI OYUNCU KONTROLLERİ ---
+        let cezalar = JSON.parse(fs.readFileSync('./cezalar.json', 'utf8'));
+
+        let t1Oyuncular = [...takim1.oyuncular];
+        let t2Oyuncular = [...takim2.oyuncular];
+
+        t1Oyuncular = t1Oyuncular.filter(oyuncu => {
+            if (cezalar[oyuncu] && cezalar[oyuncu].cezaliMi) {
+                message.channel.send(`🚨 **${oyuncu}** cezalı olduğu için bu maçta kadrodan çıkarıldı! (Cezası şimdi bitti)`);
+                delete cezalar[oyuncu];
+                return false;
+            }
+            return true;
         });
-        message.reply(`✅ **${takimAdi}** takımı kuruldu! Sahibi: ${hedef}`);
-    }
 
-    if (command === 'taktik') {
-        const takimAdi = args[0];
-        const taktikYazisi = args.slice(1).join(' ');
-
-        if (!takimAdi || !taktikYazisi) return message.reply('Kullanım: `.taktik Beşiktaş 4-3-3 Ofansif`');
-        
-        const takim = takimlar.get(takimAdi.toLowerCase());
-        if (!takim) return message.reply('Böyle bir takım bulunamadı.');
-
-        takim.taktik = taktikYazisi;
-        message.reply(`⚙️ **${takim.isim}** takımının yeni diziliş ve taktiği: **${taktikYazisi}** olarak ayarlandı!`);
-    }
-
-    if (command === 'takimlist') {
-        if (takimlar.size === 0) {
-            const bosEmbed = new EmbedBuilder()
-                .setTitle('📋 SUNUCU AKTİF TAKIMLARI')
-                .setDescription('⚠️ Henüz sunucuda kurulmuş bir takım bulunmuyor!')
-                .setColor('#e74c3c');
-            return message.reply({ embeds: [bosEmbed] });
-        }
-
-        const embed = new EmbedBuilder()
-            .setTitle('🏟️ SUNUCU RESMİ LİGİ | AKTİF TAKIMLAR')
-            .setDescription('Sunucuda aktif olarak mücadele eden takımlar:')
-            .setColor('#2ecc71')
-            .setTimestamp();
-
-        let sayac = 1;
-        takimlar.forEach((t) => {
-            const i11Sayisi = t.ilk11 ? t.ilk11.length : 0;
-            const yedekSayisi = t.yedekler ? t.yedekler.length : 0;
-            embed.addFields({
-                name: `🏅 ${sayac}. ${t.isim.toUpperCase()}`,
-                value: `> 👑 **Kurucu:** <@${t.kurucuId}>\n> ⚙️ **Diziliş:** \`${t.taktik || '4-4-2'}\`\n> 🏃‍♂️ **Kadro:** \`${i11Sayisi + yedekSayisi} Oyuncu\` *(İlk 11: ${i11Sayisi}/11 | Yedek: ${yedekSayisi})*\n> 📋 **Kadro Detayı:** \`.kadro ${t.isim}\``,
-                inline: false
-            });
-            sayac++;
+        t2Oyuncular = t2Oyuncular.filter(oyuncu => {
+            if (cezalar[oyuncu] && cezalar[oyuncu].cezaliMi) {
+                message.channel.send(`🚨 **${oyuncu}** cezalı olduğu için bu maçta kadrodan çıkarıldı! (Cezası şimdi bitti)`);
+                delete cezalar[oyuncu];
+                return false;
+            }
+            return true;
         });
 
-        message.reply({ embeds: [embed] });
-    }
+        fs.writeFileSync('./cezalar.json', JSON.stringify(cezalar, null, 4));
 
-    if (command === 'takimsil') {
-        if (!message.member.roles.cache.has(TAKIM_YETKILI)) {
-            return message.reply('Bu komutu sadece <@&1522699609506316338> rolündekiler kullanabilir.');
-        }
-        const takimAdi = args.join(' ');
-        if (!takimAdi || !takimlar.has(takimAdi.toLowerCase())) return message.reply('Böyle bir takım bulunamadı.');
-
-        takimlar.delete(takimAdi.toLowerCase());
-        message.reply(`🗑️ **${takimAdi}** takımı başarıyla silindi.`);
-    }
-
-    if (command === 'oyuncual') {
-        if (!message.member.roles.cache.has(TRANSFER_YETKILI_1) && !message.member.roles.cache.has(TRANSFER_YETKILI_2)) {
-            return message.reply('Bu komutu sadece transfer yetkilileri kullanabilir.');
-        }
-        
-        let oyuncuAdı = args[0];
-        const takimAdi = args[1];
-        const mevki = args[2];
-
-        if (!oyuncuAdı || !takimAdi || !mevki) {
-            return message.reply('Kullanım: `.oyuncual Osimhen Beşiktaş SNT`');
-        }
-
-        const takim = takimlar.get(takimAdi.toLowerCase());
-        if (!takim) return message.reply('Böyle bir takım bulunamadı.');
-
-        if (message.mentions.users.first()) {
-            oyuncuAdı = `<@${message.mentions.users.first().id}>`;
-        }
-
-        if (takim.ilk11.length >= 11) {
-            takim.yedekler.push({ isim: oyuncuAdı, mevki: mevki.toUpperCase() });
-            return message.reply(`⚠️ **${takim.isim}** kadrosu dolu! **${oyuncuAdı}** [${mevki.toUpperCase()}] **Yedekler** kadrosuna eklendi.`);
-        }
-
-        takim.ilk11.push({ isim: oyuncuAdı, mevki: mevki.toUpperCase() });
-        message.reply(`✅ **${oyuncuAdı}** [${mevki.toUpperCase()}] oyuncusu **${takim.isim}** takımının **İlk 11** kadrosuna başarıyla eklendi!`);
-    }
-
-    if (command === 'oyuncucikar') {
-        if (!message.member.roles.cache.has(TRANSFER_YETKILI_1) && !message.member.roles.cache.has(TRANSFER_YETKILI_2)) {
-            return message.reply('Bu komutu sadece transfer yetkilileri kullanabilir.');
-        }
-        let hedef = args[0];
-        const takimAdi = args.slice(1).join(' ');
-
-        if (!hedef || !takimAdi) return message.reply('Kullanım: `.oyuncucikar Osimhen Beşiktaş`');
-        const takim = takimlar.get(takimAdi.toLowerCase());
-        if (!takim) return message.reply('Böyle bir takım bulunamadı.');
-
-        if (message.mentions.users.first()) hedef = `<@${message.mentions.users.first().id}>`;
-
-        takim.ilk11 = takim.ilk11.filter(p => p.isim !== hedef);
-        takim.yedekler = takim.yedekler.filter(p => p.isim !== hedef);
-
-        message.reply(`❌ **${hedef}**, **${takim.isim}** takımının kadrosundan çıkarıldı.`);
-    }
-
-    if (command === 'kadro') {
-        const takimAdi = args.join(' ');
-        if (!takimAdi) return message.reply('Kullanım: `.kadro Beşiktaş`');
-        
-        const takim = takimlar.get(takimAdi.toLowerCase());
-        if (!takim) return message.reply('Böyle bir takım bulunamadı.');
-
-        const i11 = takim.ilk11.map(p => `• **${p.isim}** [${p.mevki}]`).join('\n') || 'Boş';
-        const ydk = takim.yedekler.map(p => `• **${p.isim}** [${p.mevki}]`).join('\n') || 'Boş';
-
-        const embed = new EmbedBuilder()
-            .setTitle(`🛡️ ${takim.isim} Resmi Kadrosu`)
-            .setDescription(`⚙️ **Takım Dizilişi:** ${takim.taktik || '4-4-2'}`)
-            .addFields(
-                { name: `👕 İlk 11 (${takim.ilk11.length}/11)`, value: i11, inline: false },
-                { name: `🪑 Yedekler (${takim.yedekler.length})`, value: ydk, inline: false }
-            )
-            .setColor('#f1c40f');
-        message.reply({ embeds: [embed] });
-    }
-
-    if (command === 'macbaslat') {
-        if (!message.member.roles.cache.has(TAKIM_YETKILI)) {
-            return message.reply('Maçı sadece maç yetkilileri başlatabilir.');
-        }
-        
-        const yazi = args.join(' ');
-        const bol = yazi.split(/vs/i);
-        if (bol.length < 2) return message.reply('Kullanım: `.macbaslat Fenerbahçe vs Galatasaray`');
-
-        const t1Isim = bol[0].trim().toLowerCase();
-        const t2Isim = bol[1].trim().toLowerCase();
-
-        const takim1 = takimlar.get(t1Isim);
-        const takim2 = takimlar.get(t2Isim);
-
-        if (!takim1 || !takim2) return message.reply('Maçı başlatmak için iki takımın da kurulmuş olması gerekir!');
-
-        const macKey = `${t1Isim}_${t2Isim}`;
-        const fullKey = `${message.channel.id}_${macKey}`;
-
-        if (aktifMaclar.has(fullKey)) return message.reply('⚠️ Bu kanalda zaten devam eden bir maç var!');
-
-        const embed = new EmbedBuilder()
-            .setTitle('🏟️ BÜYÜK DERBİ HEYECANI BAŞLIYOR!')
-            .setDescription(`⚽ **${takim1.isim}** vs **${takim2.isim}**\n\nMaç süresi **15 saniyede bir** akacak! Gerçekçi saha bölgeleri ve taktiksel atak motoru devrede!`)
-            .setColor('#e74c3c');
-
-        const row = new ActionRowBuilder().addComponents(
-            new ButtonBuilder().setCustomId(`baslat_${macKey}`).setLabel('🚀 Derbiyi Başlat').setStyle(ButtonStyle.Danger)
-        );
-
-        aktifMaclar.set(fullKey, {
-            key: macKey,
-            t1Key: t1Isim,
-            t2Key: t2Isim,
+        // Maç Verisi Başlangıcı
+        const guncelMac = {
             t1: takim1.isim,
             t2: takim2.isim,
+            t1Oyuncular: t1Oyuncular,
+            t2Oyuncular: t2Oyuncular,
             skor1: 0,
             skor2: 0,
             dakika: 0,
-            topSahibi: takim1.ilk11[0] ? takim1.ilk11[0].isim : `**${takim1.isim} Oyuncusu**`,
-            topSahibiTakim: "t1",
-            sahaBolgesi: "ORTASAHA", // DEFANS, ORTASAHA, HUCUM
-            durum: 'ILK_YARI',
-            intervalId: null,
-            kanalId: message.channel.id
-        });
+            topSahibiTakim: Math.random() > 0.5 ? "t1" : "t2",
+            sahaBolgesi: "ORTASAHA",
+            kartlar: {}, 
+            goller: []
+        };
 
-        message.reply({ embeds: [embed], components: [row] });
-    }
-
-    if (command === 'macdurdur') {
-        if (!message.member.roles.cache.has(TAKIM_YETKILI)) {
-            return message.reply('Maçı sadece maç yetkilileri durdurabilir.');
-        }
-
-        const yazi = args.join(' ');
-        const bol = yazi.split(/vs/i);
-        if (bol.length < 2) return message.reply('Kullanım: `.macdurdur Deneme1 vs Deneme2`');
-
-        const t1Isim = bol[0].trim().toLowerCase();
-        const t2Isim = bol[1].trim().toLowerCase();
-        const fullKey = `${message.channel.id}_${t1Isim}_${t2Isim}`;
-
-        const bulunanMac = aktifMaclar.get(fullKey);
-        if (!bulunanMac) return message.reply('⚠️ Bu kanalda aktif maç bulunamadı.');
-
-        if (bulunanMac.intervalId) clearInterval(bulunanMac.intervalId);
-        aktifMaclar.delete(fullKey);
-
-        message.reply(`🛑 **${bulunanMac.t1} vs ${bulunanMac.t2}** maçı durduruldu!`);
-    }
-});
-
-// ==========================================
-// 🎛️ GERÇEKÇİ MAÇ VE TAKTİK MOTORU (15 SN)
-// ==========================================
-const pozisyonOynat = (fullKey, channel) => {
-    const guncelMac = aktifMaclar.get(fullKey);
-    if (!guncelMac) return false;
-
-    let displayDakika = "";
-
-    // --- SÜRE VE DEVRE ARASI KONTROLÜ ---
-    if (guncelMac.durum === 'ILK_YARI') {
-        guncelMac.dakika += 3;
-        if (guncelMac.dakika >= 45) {
-            guncelMac.dakika = 45;
-            guncelMac.durum = 'DEVRE_ARASI';
-            clearInterval(guncelMac.intervalId);
-
-            const devreEmbed = new EmbedBuilder()
-                .setTitle('⏸️ İLK YARI SONA ERDİ')
-                .setDescription(`🏟️ **Skor:** **${guncelMac.t1} ${guncelMac.skor1} - ${guncelMac.skor2} ${guncelMac.t2}**\n\nİlk yarı bitti! İkinci yarıyı başlatmak için aşağıdaki butona basın!`)
-                .setColor('#34495e');
-
-            const row = new ActionRowBuilder().addComponents(
-                new ButtonBuilder().setCustomId(`devam_${guncelMac.key}`).setLabel('▶️ 2. Yarıyı Başlat').setStyle(ButtonStyle.Success)
-            );
-
-            if (channel) channel.send({ embeds: [devreEmbed], components: [row] });
-            return false;
-        }
-        displayDakika = `${guncelMac.dakika}'`;
-    } else if (guncelMac.durum === 'IKINCI_YARI') {
-        guncelMac.dakika += 3;
-        if (guncelMac.dakika >= 90) {
-            guncelMac.dakika = 90;
-            displayDakika = "90+4'";
-        } else {
-            displayDakika = `${guncelMac.dakika}'`;
-        }
-    }
-
-    const atakYapanTakimKey = guncelMac.topSahibiTakim === "t1" ? guncelMac.t1Key : guncelMac.t2Key;
-    const savunmaTakimKey = guncelMac.topSahibiTakim === "t1" ? guncelMac.t2Key : guncelMac.t1Key;
-
-    const tkAtak = takimlar.get(atakYapanTakimKey);
-    const tkSavunma = takimlar.get(savunmaTakimKey);
-
-    // Mevkisel Oyuncu Seçimleri
-    const mevcutOyuncu = guncelMac.topSahibi;
-    const defansOyuncusu = oyuncuSecMevki(atakYapanTakimKey, "DEFANS", "Savunma Oyuncusu");
-    const ortaSahaOyuncusu = oyuncuSecMevki(atakYapanTakimKey, "ORTASAHA", "Orta Saha Oyuncusu");
-    const hucumOyuncusu = oyuncuSecMevki(atakYapanTakimKey, "HUCUM", "Forvet Oyuncusu");
-    
-    const rakipDefans = oyuncuSecMevki(savunmaTakimKey, "DEFANS", "Rakip Defans");
-    const rakipKaleci = oyuncuSecMevki(savunmaTakimKey, "KALECI", "Rakip Kaleci");
-
-    // --- 🗣️ GERÇEKÇİ TARAFTAR YORUMLARI ---
-    const taraftarYorumlari = [
-        "🏟️ Tribünler adeta tek ses, stadyumda inanılmaz bir uğultu var!",
-        "🔥 Meşaleler yakıldı, taraftarlar takımlarını ileri itiyor!",
-        "👏 Müthiş pas trafiği sonrası tüm tribünler ayağa kalktı!",
-        "🤯 Tırnaklar yeniyor, herkes nefesini tutmuş durumda!"
-    ];
-    const anlikTaraftar = taraftarYorumlari[Math.floor(Math.random() * taraftarYorumlari.length)];
-
-    // --- 🩹 SAKATLIK (%5 İhtimal) ---
-    if (Math.random() < 0.05 && tkAtak && tkAtak.ilk11.length > 0 && tkAtak.yedekler.length > 0) {
-        const rIndex = Math.floor(Math.random() * tkAtak.ilk11.length);
-        const sakatlanan = tkAtak.ilk11[rIndex];
-        const giren = tkAtak.yedekler.shift();
-
-        tkAtak.ilk11[rIndex] = giren;
-        guncelMac.topSahibi = giren.isim;
-
-        const sakatlikEmbed = new EmbedBuilder()
-            .setTitle(`🏥 SAKATLIK VE OYUNCU DEĞİŞİKLİĞİ | Dakika: ${displayDakika}`)
-            .setDescription(`🚨 **Oyun Durdu!** **${sakatlanan.isim}** acı içinde yerde kaldı. Sağlık ekibi sedyeyle sahada.\n\n🔻 **Çıkan:** ${sakatlanan.isim}\n🔺 **Giren:** ${giren.isim} [${giren.mevki}]`)
-            .setColor('#e67e22');
-        if (channel) channel.send({ embeds: [sakatlikEmbed] });
-        return true;
-    }
-
-    // --- 👊 KAOTİK KAVGA (%8 İhtimal - MAÇI DURDURUR) ---
-    if (Math.random() < 0.08) {
-        clearInterval(guncelMac.intervalId);
-        guncelMac.durum = 'KAVGA_VAR';
-
-        const kavgaEmbed = new EmbedBuilder()
-            .setTitle(`💥 ORTALIK KARIŞTI! SAHADA ARBEDE | Dakika: ${displayDakika}`)
-            .setDescription(`🥊 **KAVGA!** **${mevcutOyuncu}** ve **${rakipDefans}** sert müdahale sonrası birbirinin boğazına sarıldı! Yedek kulübeleri ve taraftarlar sahaya koşuyor. Hakem çaresiz kaldı!`)
-            .setColor('#7f8c8d');
-
-        const row = new ActionRowBuilder().addComponents(
-            new ButtonBuilder().setCustomId(`polis_${guncelMac.key}`).setLabel('👮 Polis Müdahalesi İsteyin').setStyle(ButtonStyle.Danger)
-        );
-
-        if (channel) channel.send({ embeds: [kavgaEmbed], components: [row] });
-        return false;
-    }
-
-    // --- ⚽ GERÇEKÇİ BÖLGESEL AKSİYON MOTORU ---
-    let secilen = { metin: "", yeniTopcu: mevcutOyuncu, takimDegissinMi: false, yeniBolge: guncelMac.sahaBolgesi, gol: false, kart: false, penalti: false };
-
-    if (guncelMac.sahaBolgesi === "DEFANS") {
-        const defansAksiyonlari = [
-            { metin: `🛡️ **${mevcutOyuncu}** kendi ceza sahası çevresinde topu kontrol etti ve pasını garanti oynayarak **${defansOyuncusu}**'na verdi.`, yeniTopcu: defansOyuncusu, takimDegissinMi: false, yeniBolge: "DEFANS" },
-            { metin: `⚙️ Kendi yarı alanından organize çıkıyorlar. **${mevcutOyuncu}** kısa pasla orta sahadaki **${ortaSahaOyuncusu}**'nu gördü.`, yeniTopcu: ortaSahaOyuncusu, takimDegissinMi: false, yeniBolge: "ORTASAHA" },
-            { metin: `🚀 Savunmadan uzun top! **${mevcutOyuncu}** ileri uçtaki **${hucumOyuncusu}**'na doğru **Uzun bir Pas** attı, top tehlikeli bölgede!`, yeniTopcu: hucumOyuncusu, takimDegissinMi: false, yeniBolge: "HUCUM" },
-            { metin: `🛑 Hatalı pas! **${mevcutOyuncu}** pası çıkarırken araya rakip girdi! **${rakipDefans}** topu kaptı!`, yeniTopcu: rakipDefans, takimDegissinMi: true, yeniBolge: "ORTASAHA" }
-        ];
-        secilen = defansAksiyonlari[Math.floor(Math.random() * defansAksiyonlari.length)];
-
-    } else if (guncelMac.sahaBolgesi === "ORTASAHA") {
-        const ortaSahaAksiyonlari = [
-            { metin: `⚽ **${mevcutOyuncu}** orta alanda oyunun yönünü değiştirdi, **Kısa Pasla** topu **${ortaSahaOyuncusu}** ile buluşturdu.`, yeniTopcu: ortaSahaOyuncusu, takimDegissinMi: false, yeniBolge: "ORTASAHA" },
-            { metin: `⚡ Harika hareket! **${mevcutOyuncu}**, şık bir **Çalımla** rakibi **${rakipDefans}**'ı bakkala gönderdi ve takımını ileri taşıdı!`, yeniTopcu: mevcutOyuncu, takimDegissinMi: false, yeniBolge: "ORTASAHA" },
-            { metin: `📐 Oyun şimdi hareketlendi! **${mevcutOyuncu}** dikine oynadı, hücum bölgesindeki **${hucumOyuncusu}** topu aldı!`, yeniTopcu: hucumOyuncusu, takimDegissinMi: false, yeniBolge: "HUCUM" },
-            { metin: `🛑 Pres sonuç verdi! **${mevcutOyuncu}** orta sahada topu saklamaya çalışırken **${rakipDefans}** ayak koydu ve topu kaptı.`, yeniTopcu: rakipDefans, takimDegissinMi: true, yeniBolge: "ORTASAHA" },
-            { metin: `🟨 **SERT MÜDAHALE!** **${rakipDefans}** orta alanda kontratağı kesmek için **${mevcutOyuncu}**'yu çekip düşürdü. Hakem oyunu durdurdu, Sarı Kart!`, yeniTopcu: mevcutOyuncu, takimDegissinMi: false, yeniBolge: "ORTASAHA" }
-        ];
-        secilen = ortaSahaAksiyonlari[Math.floor(Math.random() * ortaSahaAksiyonlari.length)];
-
-    } else if (guncelMac.sahaBolgesi === "HUCUM") {
-        const hucumAksiyonlari = [
-            { metin: `📐 **${mevcutOyuncu}** sol kanattan ceza sahasına doğru harika bir **Orta Açtı**, arka direkte büyük tehlike!`, yeniTopcu: hucumOyuncusu, takimDegissinMi: false, yeniBolge: "HUCUM" },
-            { metin: `💥 **${mevcutOyuncu}** ceza sahası çizgisinden kaleyi düşündü! Sert şut! Ama top üstten dışarı gitti, **Aut**.`, yeniTopcu: rakipKaleci, takimDegissinMi: true, yeniBolge: "DEFANS" },
-            { metin: `🎯 **ENFES SERBEST VURUŞ GOLÜ!** Ceza sahası yayının hemen dışından **${mevcutOyuncu}** topun başına geçti, barajın üstünden kalecinin uzanamayacağı köşeye: **GOOOL!**`, yeniTopcu: rakipKaleci, takimDegissinMi: true, yeniBolge: "ORTASAHA", gol: true },
-            { metin: `🥅 **GOOOL! HARİKA HÜCUM ORGANİZASYONU!** **${mevcutOyuncu}** savunmanın arasına sızdı, kaleciyle karşı karşıya plase ve top ağlarda!`, yeniTopcu: rakipKaleci, takimDegissinMi: true, yeniBolge: "ORTASAHA", gol: true },
-            
-            // ABARTILI PENALTI VE KIRMIZI KARTLAR (Sadece Hücum bölgesinde tetiklenir)
-            { metin: `🚨 **VAR İNCELEMESİ VE PENALTI!** **${mevcutOyuncu}** ceza sahası içinde dönmek isterken yerde kaldı. Hakem VAR ekranını izledi ve **BEYAZ NOKTAYI GÖSTERDİ!**`, yeniTopcu: mevcutOyuncu, takimDegissinMi: false, yeniBolge: "HUCUM", penalti: true },
-            { metin: `🟥 **DİREKT KIRMIZI KART! KATLİAM GİBİ MÜDAHALE!** **${rakipDefans}**, gole giden **${mevcutOyuncu}**'yu ceza sahası dışında arkadan biçti! Hakem direkt kırmızı kartı çıkardı!`, yeniTopcu: mevcutOyuncu, takimDegissinMi: false, yeniBolge: "HUCUM", kart: true, cezaAlan: rakipDefans }
-        ];
-        secilen = hucumAksiyonlari[Math.floor(Math.random() * hucumAksiyonlari.length)];
-    }
-
-    // --- ÖZEL KOŞUL KONTROLLERİ ---
-
-    // 1. Penaltı Atışı Değerlendirmesi
-    if (secilen.penalti) {
-        if (Math.random() < 0.85) { // %85 Gol ihtimali
-            secilen.metin += `\n\n⚽ **Topun başına geçen ${mevcutOyuncu} kaleciyi ve topu ayrı köşelere gönderdi, PENALTIDAN GOL!**`;
-            if (guncelMac.topSahibiTakim === "t1") guncelMac.skor1++; else guncelMac.skor2++;
-            secilen.yeniTopcu = rakipKaleci;
-            secilen.takimDegissinMi = true;
-            secilen.newBolge = "ORTASAHA"; // Gol sonrası santra olur orta sahaya geçer
-        } else {
-            secilen.metin += `\n\n❌ **KAÇTI! ${mevcutOyuncu} penaltıyı direğe nişanladı! Dönen topu savunma uzaklaştırıyor!**`;
-            secilen.yeniTopcu = rakipDefans;
-            secilen.takimDegissinMi = true;
-            secilen.newBolge = "DEFANS";
-        }
-    }
-
-    // 2. Normal Gol ve Serbest Vuruş Golü
-    if (secilen.gol) {
-        if (guncelMac.topSahibiTakim === "t1") guncelMac.skor1++; else guncelMac.skor2++;
-        secilen.yeniBolge = "ORTASAHA"; // Santra için
-    }
-
-    // 3. Kırmızı Kart Durumunda Oyuncu Eksiltme
-if (secilen.kart && secilen.cezaAlan && tkSavunma) {
-    tkSavunma.ilk11 = tkSavunma.ilk11.filter(p => p.isim !== secilen.cezaAlan);
-    secilen.metin += `\n\n🔴 **${secilen.cezaAlan}** kırmızı kart gördü ve oyundan atıldı!`;
-}
-
-
-
-    // Değerleri Güncelle
-    guncelMac.topSahibi = secilen.yeniTopcu;
-    guncelMac.sahaBolgesi = secilen.yeniBolge;
-    if (secilen.takimDegissinMi) {
-        guncelMac.topSahibiTakim = guncelMac.topSahibiTakim === "t1" ? "t2" : "t1";
-    }
-
-    const atakYapanIsim = guncelMac.topSahibiTakim === "t1" ? guncelMac.t1 : guncelMac.t2;
-
-    // --- GÖRSEL SPIKER EMBED ---
-    const pozisyonEmbed = new EmbedBuilder()
-        .setTitle(`📊 CANLI ANLATIM | Dakika: ${displayDakika}`)
-        .setDescription(
-            `🏟️ **Skor:** **${guncelMac.t1} ${guncelMac.skor1} - ${guncelMac.skor2} ${guncelMac.t2}**\n\n` +
-            `🎙️ **Spiker:** ${secilen.metin}\n\n` +
-            `📣 **İzleyici:** *${anlikTaraftar}*\n\n` +
-            `📍 **Saha Bölgesi:** \`[ ${guncelMac.sahaBolgesi} ]\`\n` +
-            `⚽ **Topun Durumu:** ${guncelMac.topSahibi} (${atakYapanIsim} kontrolünde)`
-        )
-        .setColor(secilen.gol || secilen.penalti ? '#2ecc71' : (secilen.kart ? '#e74c3c' : '#3498db'));
-
-    if (channel) channel.send({ embeds: [pozisyonEmbed] });
-
-    // --- 🏁 BİTİŞ KONTROLÜ ---
-    if (guncelMac.dakika >= 90 && displayDakika.includes("90+")) {
-        const bitisEmbed = new EmbedBuilder()
-            .setTitle('🏁 DERBİNİN SON DÜDÜĞÜ GELDİ!')
-            .setDescription(`🏆 **Maç Sonucu:** **${guncelMac.t1} ${guncelMac.skor1} - ${guncelMac.skor2} ${guncelMac.t2}**\n\nTaktik savaşlarının, organize atakların ve kaotik kartların havada uçuştuğu dev derbi bitti!`)
-            .setColor('#27ae60');
-        if (channel) channel.send({ embeds: [bitisEmbed] });
-        clearInterval(guncelMac.intervalId);
-        aktifMaclar.delete(fullKey);
-        return false;
-    }
-
-    return true;
-};
-
-// ==========================================
-// 🎛️ ETKİLEŞİM VE BUTON YÖNETİMİ (15 SN)
-// ==========================================
-client.on('interactionCreate', async (interaction) => {
-    if (!interaction.isButton()) return;
-
-    const tokens = interaction.customId.split('_');
-    const islem = tokens[0];
-    const macKey = tokens.slice(1).join('_');
-    const fullKey = `${interaction.channel.id}_${macKey}`;
-
-    const mac = aktifMaclar.get(fullKey);
-    if (!mac) return interaction.reply({ content: 'Bu maça ait veri bulunamadı veya maç sonlandı.', ephemeral: true });
-
-    const channel = client.channels.cache.get(interaction.channel.id);
-
-    if (islem === 'baslat') {
-        await interaction.update({ content: '🔥 Tribünler alev aldı! Hakem ilk düdüğü çaldı!', components: [] });
+        const baslangicEmbed = new EmbedBuilder()
+            .setTitle('🏟️ DEV MAÇ BAŞLIYOR!')
+            .setDescription(`⚽ **${takim1.isim}** vs **${takim2.isim}**\n\n🟢 Hakem düdüğünü çaldı ve maç başladı! Başarılar!`)
+            .setColor('#3498db');
         
-        mac.intervalId = setInterval(() => {
-            const devam = pozisyonOynat(fullKey, channel);
-            if (!devam) clearInterval(mac.intervalId);
-        }, 15000); // 15 saniye ayarlandı
-    }
+        message.channel.send({ embeds: [baslangicEmbed] });
 
-    if (islem === 'devam') {
-        await interaction.update({ content: '⚽ İkinci yarı başladı, takımlar sahada!', components: [] });
-        
-        mac.durum = 'IKINCI_YARI';
-        mac.intervalId = setInterval(() => {
-            const devam = pozisyonOynat(fullKey, channel);
-            if (!devam) clearInterval(mac.intervalId);
-        }, 15000); // 15 saniye ayarlandı
-    }
+        // --- 🔄 MAÇ DÖNGÜSÜ (15 SANİYEDE BİR ÇALIŞIR) ---
+        const interval = setInterval(() => {
+            guncelMac.dakika += Math.floor(Math.random() * 5) + 3; // Dakika her adımda 3-8 dk arası ilerler
 
-    if (islem === 'polis') {
-        await interaction.update({ content: '👮 Çevik kuvvet sahaya girdi! Tüm saldırgan oyuncular ayrıldı ve tribünler sakinleştirildi. Maç kaldığı yerden devam ediyor!', components: [] });
-        
-        mac.durum = mac.dakika >= 45 ? 'IKINCI_YARI' : 'ILK_YARI';
-        mac.intervalId = setInterval(() => {
-            const devam = pozisyonOynat(fullKey, channel);
-            if (!devam) clearInterval(mac.intervalId);
-        }, 15000); // 15 saniye ayarlandı
-    }
-    // --- .taktikekle [Takım Adı] - [Taktik Detayı] ---
-if (command === 'taktikekle') {
-    // Mesaj içeriğini '-' işaretine göre bölüyoruz (Örn: .taktikekle Real Madrid - 4-3-3 Ofansif)
-    const girdi = args.join(' ').split('-');
-    if (girdi.length < 2) return message.reply('Kullanım: `.taktikekle [Takım Adı] - [Taktik Detayı]`\nÖrnek: `.taktikekle Real Madrid - 4-3-3 Ofansif`');
+            if (guncelMac.dakika >= 90) {
+                clearInterval(interval);
+                
+                // Maç Bitti Embed
+                const bitisEmbed = new EmbedBuilder()
+                    .setTitle('🏁 MAÇ SONA ERDİ!')
+                    .setDescription(`🏆 **Skor:** ${guncelMac.t1} **${guncelMac.skor1} - ${guncelMac.skor2}** ${guncelMac.t2}\n\n⚽ **Goller ve İstatistikler:**\n` + 
+                        (guncelMac.goller.length > 0 
+                            ? guncelMac.goller.map(g => `• Dakika ${g.dakika}': **${g.golcu}** (Asist: _${g.asistci}_)`).join('\n')
+                            : "Maçta gol sesi çıkmadı."))
+                    .setColor('#2c3e50');
 
-    const arananTakimAdi = girdi[0].trim().toLowerCase();
-    const yeniTaktik = girdi[1].trim();
+                return message.channel.send({ embeds: [bitisEmbed] });
+            }
 
-    const dosyaYolu = './takimlar.json';
-    let kayitliTakimlar = {};
+            // Pozisyon bazlı parametreler
+            const saldiranTakimKey = guncelMac.topSahibiTakim;
+            const savunanTakimKey = saldiranTakimKey === "t1" ? "t2" : "t1";
 
-    if (fs.existsSync(dosyaYolu)) {
-        try { kayitliTakimlar = JSON.parse(fs.readFileSync(dosyaYolu, 'utf8')); } catch (e) { kayitliTakimlar = {}; }
-    }
+            const saldiranKadro = saldiranTakimKey === "t1" ? guncelMac.t1Oyuncular : guncelMac.t2Oyuncular;
+            const savunanKadro = savunanTakimKey === "t1" ? guncelMac.t1Oyuncular : guncelMac.t2Oyuncular;
 
-    const takim = kayitliTakimlar[arananTakimAdi];
-    if (!takim) return message.reply('Böyle bir takım bulunamadı! Lütfen takım adını doğru yazdığınızdan emin olun.');
+            const t1Kaleci = "T1 Kalecisi";
+            const t2Kaleci = "T2 Kalecisi";
+            const rakipKaleci = saldiranTakimKey === "t1" ? t2Kaleci : t1Kaleci;
 
-    // GÜVENLİK KONTROLÜ: Komutu yazan kişi takımın sahibi mi? VEYA Yetkili Rol ID'sine sahip mi?
-    const yetkiliMi = message.member.roles.cache.has(YETKILI_ROL_ID);
-    const takiminSahibiMi = takim.kurucuId === userId;
+            // ==========================================
+            // 🎲 OYUNCULAR HER POZİSYONDA TAMAMEN RANDOM SEÇİLİR!
+            // ==========================================
+            const mevcutOyuncu = saldiranKadro[Math.floor(Math.random() * saldiranKadro.length)];
 
-    if (!takiminSahibiMi && !yetkiliMi) {
-        return message.reply('❌ Bu takımın başkanı veya yetkilisi değilsiniz! Başka bir takımın taktiğini değiştiremezsiniz.');
-    }
+            // Pas/asist alacak oyuncu (mevcut oyuncu hariç)
+            const pasAlabilecekler = saldiranKadro.filter(p => p !== mevcutOyuncu);
+            const pasAlacak = pasAlabilecekler.length > 0 
+                ? pasAlabilecekler[Math.floor(Math.random() * pasAlabilecekler.length)] 
+                : mevcutOyuncu;
 
-    // Taktiği güncelle
-    takim.taktik = yeniTaktik;
-    kayitliTakimlar[arananTakimAdi] = takim;
-    
-    // Map yapısını da güncel tutalım
-    takimlar.set(arananTakimAdi, takim);
+            // Defans yapan takımdan rastgele bir oyuncu (Kart veya blok için)
+            const savunanOyuncu = savunanKadro[Math.floor(Math.random() * savunanKadro.length)];
 
-    // Dosyaya kaydet
-    fs.writeFileSync(dosyaYolu, JSON.stringify(kayitliTakimlar, null, 4));
+            let pozisyonMetni = "";
+            const rastgeleAksiyon = Math.random();
 
-    const taktikEmbed = new EmbedBuilder()
-        .setTitle('📋 TAKTİK GÜNCELLENDİ')
-        .setDescription(`⚽ **Takım:** \`${takim.isim}\`\n👤 **Güncelleyen:** ${message.author}\n⚙️ **Yeni Belirlenen Taktik:** \`${yeniTaktik}\``)
-        .setFooter({ text: 'Taktik başarıyla takım şablonuna işlendi!' })
-        .setColor('#2ecc71');
+            // --- 🟨 🟥 KART DURUMLARI (%12 Şans) ---
+            const kartSansi = Math.random();
+            if (kartSansi < 0.12 && savunanKadro.length > 1) {
+                const kartGorenOyuncu = savunanOyuncu; // Rastgele seçilen savunan oyuncu kart görüyor
 
-    return message.reply({ embeds: [taktikEmbed] });
-                                    
+                if (!guncelMac.kartlar[kartGorenOyuncu]) {
+                    guncelMac.kartlar[kartGorenOyuncu] = { sari: 0, kirmizi: false };
+                }
+
+                const kartTipi = Math.random() > 0.85 ? "kirmizi" : "sari";
+
+                if (kartTipi === "sari") {
+                    guncelMac.kartlar[kartGorenOyuncu].sari += 1;
+
+                    if (guncelMac.kartlar[kartGorenOyuncu].sari === 1) {
+                        pozisyonMetni = `🟨 **SARI KART!** [${guncelMac.dakika}'] **${kartGorenOyuncu}** yaptığı sert müdahale sonrası sarı kart gördü!`;
+                    } else if (guncelMac.kartlar[kartGorenOyuncu].sari === 2) {
+                        guncelMac.kartlar[kartGorenOyuncu].kirmizi = true;
+                        
+                        // Kadrodan silerek 10 kişi kalmasını sağlıyoruz
+                        const oyuncuIndex = savunanKadro.indexOf(kartGorenOyuncu);
+                        if (oyuncuIndex > -1) savunanKadro.splice(oyuncuIndex, 1);
+
+                        pozisyonMetni = `🟨🟥 **ÇİFT SARIDAN KIRMIZI!** [${guncelMac.dakika}'] **${kartGorenOyuncu}** ikinci sarı kartını görerek oyundan atıldı! Takımı **10 kişi** kaldı!`;
+                        
+                        YazCezayi(kartGorenOyuncu, "İkinci Sarı Kart");
+                    }
+                } else {
+                    guncelMac.kartlar[kartGorenOyuncu].kirmizi = true;
+
+                    const oyuncuIndex = savunanKadro.indexOf(kartGorenOyuncu);
+                    if (oyuncuIndex > -1) savunanKadro.splice(oyuncuIndex, 1);
+
+                    pozisyonMetni = `🟥 **DOĞRUDAN KIRMIZI KART!** [${guncelMac.dakika}'] **${kartGorenOyuncu}** doğrudan kırmızı kartla oyundan atıldı! Takımı **10 kişi** kaldı!`;
                     
-}
+                    YazCezayi(kartGorenOyuncu, "Doğrudan Kırmızı Kart");
+                }
+
+            } else if (rastgeleAksiyon < 0.30) {
+                // --- 👟 PAS SİSTEMİ (Kısa, Uzun, Ara Pas) ---
+                const pasSansi = Math.random();
+                if (pasSansi < 0.75) {
+                    const pasMetinleri = [
+                        `👟 **${mevcutOyuncu}** orta sahada kısa pasla topu **${pasAlacak}**'a aktardı.`,
+                        `🚀 **${mevcutOyuncu}** savunmadan uzun bir pasla topu ileri uçtaki **${pasAlacak}** ile buluşturdu!`,
+                        `⚡ **Müthiş ara pas!** **${mevcutOyuncu}** savunmanın arkasına nefis bir ara pası bıraktı, **${pasAlacak}** topla buluştu!`
+                    ];
+                    pozisyonMetni = pasMetinleri[Math.floor(Math.random() * pasMetinleri.length)];
+                    guncelMac.sahaBolgesi = "FORVET";
+                } else {
+                    pozisyonMetni = `❌ **Pas Arası!** **${mevcutOyuncu}** pas atmak istedi ama savunmada **${savunanOyuncu}** araya girdi ve topu kaptı!`;
+                    guncelMac.topSahibiTakim = savunanTakimKey; // Top rakibe geçti
+                    guncelMac.sahaBolgesi = "DEFANS";
+                }
+
+            } else if (rastgeleAksiyon < 0.50) {
+                // --- 🏃‍♂️ ÇALIM VE DEPAR ---
+                const calimSansi = Math.random();
+                if (calimSansi < 0.65) {
+                    const calimMetinleri = [
+                        `🏃‍♂️ **${mevcutOyuncu}** depar atarak çizgiden hızla sıyrıldı!`,
+                        `⚡ **Harika çalım!** **${mevcutOyuncu}** şık bir vücut çalımıyla rakibini ekarte etti!`
+                    ];
+                    pozisyonMetni = calimMetinleri[Math.floor(Math.random() * calimMetinleri.length)];
+                    guncelMac.sahaBolgesi = "FORVET";
+                } else {
+                    pozisyonMetni = `🛡️ **Top Kaybı!** **${mevcutOyuncu}** depar atmak isterken savunmada **${savunanOyuncu}** zamanında müdahale etti!`;
+                    guncelMac.topSahibiTakim = savunanTakimKey;
+                    guncelMac.sahaBolgesi = "ORTASAHA";
+                }
+
+            } else if (rastgeleAksiyon < 0.75) {
+                // --- ⚽ ŞUT SİSTEMİ (GOL / ASİST) ---
+                const sutSansi = Math.random();
+                if (sutSansi < 0.25) {
+                    pozisyonMetni = `🏃‍♂️ **Dışarı!** **${mevcutOyuncu}** kaleciyle karşı karşıya kaldı ama vuruşunda top doğrudan auta gitti!`;
+                    guncelMac.topSahibiTakim = savunanTakimKey;
+                    guncelMac.sahaBolgesi = "DEFANS";
+                } else if (sutSansi < 0.55) {
+                    if (saldiranTakimKey === "t1") guncelMac.skor1++; else guncelMac.skor2++;
+                    const asistci = pasAlacak !== mevcutOyuncu ? pasAlacak : "Asist Yok";
+                    
+                    pozisyonMetni = `🥅 **GOOOL!** [${guncelMac.dakika}'] **${mevcutOyuncu}** karşı karşıya pozisyonda nefis vurdu ve topu ağlara yolladı! \n⚽ **Golü Atan:** ${mevcutOyuncu} | 🅰️ **Asist:** ${asistci}`;
+                    
+                    guncelMac.goller.push({ golcu: mevcutOyuncu, asistci: asistci, dakika: guncelMac.dakika });
+                    guncelMac.topSahibiTakim = savunanTakimKey; // Santra için top rakibe geçer
+                    guncelMac.sahaBolgesi = "ORTASAHA";
+                } else if (sutSansi < 0.75) {
+                    pozisyonMetni = `🧤 **Kurtarış!** **${mevcutOyuncu}** karşı karşıya sert vurdu ama kaleci **${rakipKaleci}** devleşti ve golü önledi!`;
+                    guncelMac.topSahibiTakim = savunanTakimKey;
+                    guncelMac.sahaBolgesi = "DEFANS";
+                } else {
+                    pozisyonMetni = `📐 **Direkten Döndü!** **${mevcutOyuncu}** vurdu, direğe çarpan top oyun alanına geri döndü! Savunma tehlikeyi uzaklaştırıyor!`;
+                    if (Math.random() > 0.5) guncelMac.topSahibiTakim = savunanTakimKey;
+                    guncelMac.sahaBolgesi = "ORTASAHA";
+                }
+
+            } else {
+                // --- 🔀 FAUL / SERBEST VURUŞ ---
+                const faulSansi = Math.random();
+                if (faulSansi < 0.30) {
+                    if (saldiranTakimKey === "t1") guncelMac.skor1++; else guncelMac.skor2++;
+                    pozisyonMetni = `🥅 **GOOOL!** [${guncelMac.dakika}'] **${mevcutOyuncu}** serbest vuruştan harika bir plaseyle barajın üstünden topu doksana yolladı!`;
+                    
+                    guncelMac.goller.push({ golcu: mevcutOyuncu, asistci: "Asist Yok (Frikik)", dakika: guncelMac.dakika });
+                    guncelMac.topSahibiTakim = savunanTakimKey;
+                    guncelMac.sahaBolgesi = "ORTASAHA";
+                } else {
+                    pozisyonMetni = `❌ **Serbest vuruş kaçtı!** **${mevcutOyuncu}** frikikten kaleyi denedi ama top barajdan sekerek dışarı çıktı.`;
+                    guncelMac.topSahibiTakim = savunanTakimKey;
+                    guncelMac.sahaBolgesi = "DEFANS";
+                }
+            }
+
+            // Her 15 saniyede bir yeni mesaj olarak kanala atılan embed:
+            const anlikEmbed = new EmbedBuilder()
+                .setTitle(`🕒 Dakika: ${guncelMac.dakika}'`)
+                .setDescription(pozisyonMetni)
+                .setFooter({ text: `Bölge: ${guncelMac.sahaBolgesi} | Skor: ${guncelMac.skor1} - ${guncelMac.skor2}` })
+                .setColor('#f39c12');
+
+            message.channel.send({ embeds: [anlikEmbed] });
+
+        }, 15000); // Maç aksiyon süresi: Tam olarak 15 saniye!
+    }
 });
 
-client.login(process.env.TOKEN);
+// --- CEZA KAYDETME YARDIMCI FONKSİYONU ---
+function YazCezayi(oyuncuIsmi, sebep) {
+    let cezalar = {};
+    if (fs.existsSync('./cezalar.json')) {
+        try { cezalar = JSON.parse(fs.readFileSync('./cezalar.json', 'utf8')); } catch (e) { cezalar = {}; }
+    }
+    cezalar[oyuncuIsmi] = { cezaliMi: true, sebep: sebep };
+    fs.writeFileSync('./cezalar.json', JSON.stringify(cezalar, null, 4));
+}
+
+client.login("BOTUNUN_TOKEN_KODUNU_BURAYA_YAZ"); // Buraya kendi Discord Bot Token kodunu yazmayı unutma kanka!
+        
