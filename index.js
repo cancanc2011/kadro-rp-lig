@@ -8,12 +8,11 @@ const client = new Client({
     ]
 });
 
-// Sunucu bazlı sabit veritabanı (Belirtilen Sunucu ID: 1522274201539579934)
 const db = {
     "1522274201539579934": {
         maxVal: 200,
         slots: 10,
-        players: [] // Profil oluşturan veya kayıt olanlar buraya eklendikçe otomatik güncellenir
+        players: []
     }
 };
 
@@ -24,7 +23,6 @@ client.once('ready', () => {
 client.on('messageCreate', async message => {
     if (message.author.bot) return;
 
-    // Sadece belirtilen sunucu id kontrolü
     if (message.guild && message.guild.id !== "1522274201539579934") return;
 
     const prefix = '.';
@@ -33,7 +31,6 @@ client.on('messageCreate', async message => {
     const args = message.content.slice(prefix.length).trim().split(/ +/);
     const command = args.shift().toLowerCase();
 
-    // 📊 .degersiralama Komutu
     if (command === 'degersiralama') {
         const guildId = message.guild ? message.guild.id : "1522274201539579934";
         const market = db[guildId] || { maxVal: 200, slots: 10, players: [] };
@@ -60,5 +57,5 @@ client.on('messageCreate', async message => {
     }
 });
 
-client.login(process.env.DISC
-             ORD_TOKEN);
+client.login(process.env.DIS
+             CORD_TOKEN);
