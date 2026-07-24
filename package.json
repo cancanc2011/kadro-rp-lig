@@ -1,16 +1,12 @@
 {
-  "name": "discord-futbol-botu",
+  "name": "fifa-2026-discord-bot",
   "version": "1.0.0",
-  "description": "Gelişmiş Transfer, Kadro ve Maç Simülasyonu Botu",
+  "description": "Fifa 2026 Discord Bot",
   "main": "index.js",
   "scripts": {
     "start": "node index.js"
   },
   "dependencies": {
-    "discord.js": "^14.14.1",
-    "http": "^0.0.1-security"
-  },
-  "engines": {
-    "node": "18.x"
+    "discord.js": "^14.14.1"
   }
 }
