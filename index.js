@@ -215,6 +215,8 @@ client.on('messageCreate', async message => {
     const args = message.content.slice(1).trim().split(/ +/);
     const command = args.shift().toLowerCase();
 
+    // !yardim komutunu test etmek veya doğrudan botunuza eklemek için güncel kod bloğu:
+
     // 1. YARDIM MENÜSÜ
     if (command === 'yardim' || command === 'yardım' || command === 'fifa') {
         const embed = new EmbedBuilder()
@@ -238,6 +240,9 @@ client.on('messageCreate', async message => {
                 { name: '🤝 `.gorusmebaslat <takim_kodu>`', value: 'Kulüp yönetimiyle transfer görüşmesi başlatır.' },
                 { name: '📅 `.transferdonemi`', value: 'Transfer döneminin durumunu gösterir.' }
             );
+        return message.reply({ embeds: [embed] });
+    }
+
         return message.reply({ embeds: [embed] });
     }
 
