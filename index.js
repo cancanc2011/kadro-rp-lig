@@ -215,6 +215,20 @@ client.on('messageCreate', async message => {
     const args = message.content.slice(1).trim().split(/ +/);
     const command = args.shift().toLowerCase();
 
+
+
+    // 2. KARİYER BAŞLAT
+    if (command === 'kariyerbaslat') {
+        const name = args[0];
+        const number = args[1];
+        const position = args[2]?.toUpperCase();
+
+        if (!name || !number || !position) {
+            return message.reply('❌ Örnek: `.kariyerbaslat Muslera 1 KL` veya `.kariyerbaslat Mbappe 7 ST`');
+        }
+
+        // !yardim komutu ile botun tüm güncel komutlarını listeleyen Discord.js kod bloğu:
+
     // 1. YARDIM MENÜSÜ
     if (command === 'yardim' || command === 'yardım' || command === 'fifa') {
         const embed = new EmbedBuilder()
@@ -240,18 +254,7 @@ client.on('messageCreate', async message => {
             );
         return message.reply({ embeds: [embed] });
     }
-
-    // 2. KARİYER BAŞLAT
-    if (command === 'kariyerbaslat') {
-        const name = args[0];
-        const number = args[1];
-        const position = args[2]?.toUpperCase();
-
-        if (!name || !number || !position) {
-            return message.reply('❌ Örnek: `.kariyerbaslat Muslera 1 KL` veya `.kariyerbaslat Mbappe 7 ST`');
-        }
-
-        db.careers[message.author.id] = {
+db.careers[message.author.id] = {
             name: name,
             number: number,
             position: position,
