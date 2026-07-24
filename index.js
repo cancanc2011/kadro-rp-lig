@@ -1,5 +1,4 @@
 const { Client, GatewayIntentBits, EmbedBuilder } = require('discord.js');
-const fs = require('fs');
 
 const client = new Client({
     intents: [
@@ -9,374 +8,235 @@ const client = new Client({
     ]
 });
 
-// --- AYARLAR VE KLASÖR KONTROLLERİ ---
-const PREFIX = ".";
-const YETKILI_ROL_ID = "YETKILI_ROL_IDSINI_BURAYA_YAZ"; // Buraya yetkili rol ID'sini yapıştır kanka
+// --- FİFA 2026 VERİ TABANI ---
+const db = {
+    teams: {
+        // Süper Lig
+        "gs": { name: "Galatasaray", league: "Süper Lig", rating: 86, budget: 180, players: ["Icardi", "Osimhen", "Torreira", "Barış Alper"] },
+        "fb": { name: "Fenerbahçe", league: "Süper Lig", rating: 85, budget: 175, players: ["Dzeko", "Tadic", "Fred", "İrfan Can"] },
+        "bjk": { name: "Beşiktaş", league: "Süper Lig", rating: 83, budget: 140, players: ["Immobile", "Rafa Silva", "Gedson", "Mert"] },
+        "ts": { name: "Trabzonspor", league: "Süper Lig", rating: 81, budget: 120, players: ["Onuachu", "Visca", "Uğurcan", "Bardhi"] },
+        
+        // Premier Lig
+        "mancity": { name: "Manchester City", league: "Premier Lig", rating: 91, budget: 300, players: ["Haaland", "De Bruyne", "Foden", "Rodri"] },
+        "arsenal": { name: "Arsenal", league: "Premier Lig", rating: 89, budget: 250, players: ["Saka", "Ødegaard", "Rice", "Saliba"] },
+        "mancutd": { name: "Manchester United", league: "Premier Lig", rating: 85, budget: 220, players: ["Rashford", "Fernandes", "Mainoo", "Onana"] },
+        "chelsea": { name: "Chelsea", league: "Premier Lig", rating: 84, budget: 240, players: ["Palmer", "Jackson", "Nkunku", "Caicedo"] },
 
-// JSON dosyalarının varlığını kontrol et, yoksa boş oluştur
-const dosyaKontrol = (dosyaYolu) => {
-    if (!fs.existsSync(dosyaYolu)) {
-        fs.writeFileSync(dosyaYolu, JSON.stringify({}, null, 4));
-    }
+        // La Liga
+        "realmadrid": { name: "Real Madrid", league: "La Liga", rating: 92, budget: 320, players: ["Mbappe", "Bellingham", "Vinicius Jr", "Valverde"] },
+        "barcelona": { name: "Barcelona", league: "La Liga", rating: 89, budget: 230, players: ["Lewandowski", "Yamal", "Pedri", "Gavi"] },
+        "atletico": { name: "Atletico Madrid", league: "La Liga", rating: 86, budget: 190, players: ["Griezmann", "Alvarez", "Koke", "Oblak"] },
+
+        // Serie A
+        "inter": { name: "Inter", league: "Serie A", rating: 88, budget: 210, players: ["Lautaro", "Thuram", "Barella", "Calhanoglu"] },
+        "milan": { name: "AC Milan", league: "Serie A", rating: 85, budget: 190, players: ["Leao", "Pulisic", "Hernandez", "Maignan"] },
+        "juventus": { name: "Juventus", league: "Serie A", rating: 85, budget: 200, players: ["Vlahovic", "Chiesa", "Bremer", "Locatelli"] }
+    },
+    // Kullanıcıların oluşturduğu oyuncu kariyerleri
+    careers: {},
+    matches: [
+        { home: "gs", away: "realmadrid", played: false },
+        { home: "fb", away: "barcelona", played: false },
+        { home: "mancity", away: "inter", played: false }
+    ]
 };
-dosyaKontrol('./takimlar.json');
-dosyaKontrol('./cezalar.json');
 
-// Bellek içi aktif takımlar ve maçlar
-const takimlar = new Map();
-
-// --- 📂 BOT AÇILIŞINDA TAKIMLARI GERİ YÜKLEME ---
 client.once('ready', () => {
-    console.log(`🤖 Bot ${client.user.tag} olarak giriş yaptı!`);
-    
-    try {
-        const kayitliTakimlar = JSON.parse(fs.readFileSync('./takimlar.json', 'utf8'));
-        for (let key in kayitliTakimlar) {
-            takimlar.set(key, kayitliTakimlar[key]);
-        }
-        console.log("📂 Kayıtlı tüm takımlar başarıyla dosyadan yüklendi!");
-    } catch (e) {
-        console.error("Takımlar dosyadan yüklenirken hata oluştu:", e);
-    }
+    console.log(`Bot aktif: ${client.user.tag}`);
 });
 
-// --- 📩 MESAJ GELİNCE ÇALIŞACAK KOMUTLAR ---
-client.on('messageCreate', async (message) => {
-    if (message.author.bot || !message.content.startsWith(PREFIX)) return;
+client.on('messageCreate', async message => {
+    if (message.author.bot) return;
 
-    const args = message.content.slice(PREFIX.length).trim().split(/ +/);
+    const prefix = '!';
+    if (!message.content.startsWith(prefix)) return;
+
+    const args = message.content.slice(prefix.length).trim().split(/ +/);
     const command = args.shift().toLowerCase();
-    const userId = message.author.id;
 
-    // ==========================================
-    // ⚔️ KOMUT 1: .takimkur @kullanici Takım Adı
-    // ==========================================
-    if (command === 'takimkur') {
-        if (!message.member.roles.cache.has(YETKILI_ROL_ID)) {
-            return message.reply('❌ Bu komutu kullanmak için yetkiniz yok.');
-        }
-        
-        const hedef = message.mentions.users.first();
-        const takimAdi = args.slice(1).join(' ');
-        
-        if (!hedef || !takimAdi) {
-            return message.reply('👉 Kullanım: `.takimkur @kullanici TakımAdı`');
-        }
+    // 1. YARDIM MENÜSÜ (.yardim veya !yardim)
+    if (command === 'yardım' || command === 'yardim' || command === 'fifa') {
+        const embed = new EmbedBuilder()
+            .setColor('#00FF00')
+            .setTitle('⚽ Fifa 2026 Kariyer & Bot Komutları')
+            .setDescription('Tüm kulüpler, transferler, maçlar ve kendi oyuncu kariyerini yönet!')
+            .addFields(
+                { name: '👤 `!kariyerbaslat <İsim> <Numara> <Mevki>`', value: 'Kendi futbolcu kariyerini başlatır. (Örn: `!kariyerbaslat Alex 10 OOS`)' },
+                { name: '📋 `!profil`', value: 'Kendi futbolcu kartını ve istatistiklerini gösterir.' },
+                { name: '🏟️ `!takimlar`', value: 'Süper Lig, Premier Lig, La Liga ve Serie A takımlarını listeler.' },
+                { name: '🔄 `!transfer <Kısaltma> <Oyuncu>`', value: 'Takımlara oyuncu transfer eder.' },
+                { name: '⚽ `!mac <EvSahibi> <Deplasman>`', value: 'Takımlar arasında maç simülasyonu yapar.' },
+                { name: '📅 `!fikstur`', value: 'Maç fikstürünü gösterir.' }
+            )
+            .setFooter({ text: 'Fifa 2026 Sistemi' });
 
-        const takimKey = takimAdi.toLowerCase();
-        let kayitliTakimlar = JSON.parse(fs.readFileSync('./takimlar.json', 'utf8'));
-
-        if (kayitliTakimlar[takimKey]) {
-            return message.reply('⚠️ Bu isimde bir takım zaten kurulmuş!');
-        }
-
-        // Yeni takım şablonu (11 adet varsayılan oyuncu)
-        const yeniTakim = { 
-            isim: takimAdi, 
-            kurucuId: hedef.id, 
-            taktik: 'Belirlenmedi', 
-            oyuncular: [
-                "Oyuncu 1", "Oyuncu 2", "Oyuncu 3", "Oyuncu 4", "Oyuncu 5", 
-                "Oyuncu 6", "Oyuncu 7", "Oyuncu 8", "Oyuncu 9", "Oyuncu 10", "Kaleci"
-            ] 
-        };
-
-        takimlar.set(takimKey, yeniTakim);
-        kayitliTakimlar[takimKey] = yeniTakim;
-        fs.writeFileSync('./takimlar.json', JSON.stringify(kayitliTakimlar, null, 4));
-
-        return message.reply(`✅ **${takimAdi}** takımı kuruldu! Takım Sahibi (Başkan): ${hedef}`);
+        return message.reply({ embeds: [embed] });
     }
 
-    // ==========================================
-    // 📋 KOMUT 2: .taktikekle Takım Adı - Taktik Detayı
-    // ==========================================
-    if (command === 'taktikekle') {
-        const girdi = args.join(' ').split('-');
-        if (girdi.length < 2) {
-            return message.reply('👉 Kullanım: `.taktikekle [Takım Adı] - [Taktik Detayı]`\nÖrn: `.taktikekle Real Madrid - 4-3-3 Ofansif / Kısa Pas`');
+    // 2. OYUNCU KARİYERİ BAŞLATMA (!kariyerbaslat İsim Numara Mevki)
+    if (command === 'kariyerbaslat') {
+        const name = args[0];
+        const number = args[1];
+        const position = args[2];
+
+        if (!name || !number || !position) {
+            return message.reply('❌ Eksik kullanım! Örnek kullanım: `!kariyerbaslat Alex 10 OOS`');
         }
 
-        const arananTakimAdi = girdi[0].trim().toLowerCase();
-        const yeniTaktik = girdi[1].trim();
-
-        let kayitliTakimlar = JSON.parse(fs.readFileSync('./takimlar.json', 'utf8'));
-        const takim = kayitliTakimlar[arananTakimAdi];
-
-        if (!takim) {
-            return message.reply('❌ Böyle bir takım bulunamadı! Takım adını doğru yazdığınızdan emin olun.');
-        }
-
-        const yetkiliMi = message.member.roles.cache.has(YETKILI_ROL_ID);
-        const takiminSahibiMi = takim.kurucuId === userId;
-
-        if (!takiminSahibiMi && !yetkiliMi) {
-            return message.reply('❌ Bu takımın sahibi veya teknik direktörü değilsiniz!');
-        }
-
-        takim.taktik = yeniTaktik;
-        kayitliTakimlar[arananTakimAdi] = takim;
-        takimlar.set(arananTakimAdi, takim);
-
-        fs.writeFileSync('./takimlar.json', JSON.stringify(kayitliTakimlar, null, 4));
-
-        const taktikEmbed = new EmbedBuilder()
-            .setTitle('📋 TAKTİK GÜNCELLENDİ')
-            .setDescription(`⚽ **Takım:** \`${takim.isim}\`\n👤 **Güncelleyen:** ${message.author}\n⚙️ **Yeni Belirlenen Taktik:** \`${yeniTaktik}\``)
-            .setFooter({ text: 'Taktik başarıyla takım şablonuna işlendi!' })
-            .setColor('#2ecc71');
-
-        return message.reply({ embeds: [taktikEmbed] });
-    }
-
-    // ==========================================
-    // ⚽ KOMUT 3: .mac Takım1 - Takım2 (Maç Başlatma)
-    // ==========================================
-    if (command === 'mac') {
-        const girdi = args.join(' ').split('-');
-        if (girdi.length < 2) return message.reply('👉 Kullanım: `.mac Takım1 - Takım2`');
-
-        const t1Key = girdi[0].trim().toLowerCase();
-        const t2Key = girdi[1].trim().toLowerCase();
-
-        let kayitliTakimlar = JSON.parse(fs.readFileSync('./takimlar.json', 'utf8'));
-        let takim1 = kayitliTakimlar[t1Key];
-        let takim2 = kayitliTakimlar[t2Key];
-
-        if (!takim1 || !takim2) return message.reply('❌ Girdiğiniz takımlardan biri veya ikisi bulunamadı!');
-
-        // --- 🛡️ CEZALI OYUNCU KONTROLLERİ ---
-        let cezalar = JSON.parse(fs.readFileSync('./cezalar.json', 'utf8'));
-
-        let t1Oyuncular = [...takim1.oyuncular];
-        let t2Oyuncular = [...takim2.oyuncular];
-
-        t1Oyuncular = t1Oyuncular.filter(oyuncu => {
-            if (cezalar[oyuncu] && cezalar[oyuncu].cezaliMi) {
-                message.channel.send(`🚨 **${oyuncu}** cezalı olduğu için bu maçta kadrodan çıkarıldı! (Cezası şimdi bitti)`);
-                delete cezalar[oyuncu];
-                return false;
-            }
-            return true;
-        });
-
-        t2Oyuncular = t2Oyuncular.filter(oyuncu => {
-            if (cezalar[oyuncu] && cezalar[oyuncu].cezaliMi) {
-                message.channel.send(`🚨 **${oyuncu}** cezalı olduğu için bu maçta kadrodan çıkarıldı! (Cezası şimdi bitti)`);
-                delete cezalar[oyuncu];
-                return false;
-            }
-            return true;
-        });
-
-        fs.writeFileSync('./cezalar.json', JSON.stringify(cezalar, null, 4));
-
-        // Maç Verisi Başlangıcı
-        const guncelMac = {
-            t1: takim1.isim,
-            t2: takim2.isim,
-            t1Oyuncular: t1Oyuncular,
-            t2Oyuncular: t2Oyuncular,
-            skor1: 0,
-            skor2: 0,
-            dakika: 0,
-            topSahibiTakim: Math.random() > 0.5 ? "t1" : "t2",
-            sahaBolgesi: "ORTASAHA",
-            kartlar: {}, 
-            goller: []
+        // Oyuncuyu kaydet
+        db.careers[message.author.id] = {
+            name: name,
+            number: number,
+            position: position.toUpperCase(),
+            rating: 75, // Başlangıç potansiyel gücü
+            goals: 0,
+            matchesPlayed: 0
         };
 
-        const baslangicEmbed = new EmbedBuilder()
-            .setTitle('🏟️ DEV MAÇ BAŞLIYOR!')
-            .setDescription(`⚽ **${takim1.isim}** vs **${takim2.isim}**\n\n🟢 Hakem düdüğünü çaldı ve maç başladı! Başarılar!`)
-            .setColor('#3498db');
-        
-        message.channel.send({ embeds: [baslangicEmbed] });
+        const embed = new EmbedBuilder()
+            .setColor('#00FF00')
+            .setTitle('🌟 Futbolcu Kariyeri Başlatıldı!')
+            .setDescription(`Tebrikler **${name}**, profesyonel futbol dünyasına adım attın!`)
+            .addFields(
+                { name: 'Futbolcu Adı', value: name, inline: true },
+                { name: 'Forma Numarası', value: number, inline: true },
+                { name: 'Mevki', value: position.toUpperCase(), inline: true },
+                { name: 'Genel Reyting', value: '75 ⭐', inline: true }
+            )
+            .setFooter({ text: 'Profilini görmek için !profil yazabilirsin.' });
 
-        // --- 🔄 MAÇ DÖNGÜSÜ (15 SANİYEDE BİR ÇALIŞIR) ---
-        const interval = setInterval(() => {
-            guncelMac.dakika += Math.floor(Math.random() * 5) + 3; // Dakika her adımda 3-8 dk arası ilerler
+        return message.reply({ embeds: [embed] });
+    }
 
-            if (guncelMac.dakika >= 90) {
-                clearInterval(interval);
-                
-                // Maç Bitti Embed
-                const bitisEmbed = new EmbedBuilder()
-                    .setTitle('🏁 MAÇ SONA ERDİ!')
-                    .setDescription(`🏆 **Skor:** ${guncelMac.t1} **${guncelMac.skor1} - ${guncelMac.skor2}** ${guncelMac.t2}\n\n⚽ **Goller ve İstatistikler:**\n` + 
-                        (guncelMac.goller.length > 0 
-                            ? guncelMac.goller.map(g => `• Dakika ${g.dakika}': **${g.golcu}** (Asist: _${g.asistci}_)`).join('\n')
-                            : "Maçta gol sesi çıkmadı."))
-                    .setColor('#2c3e50');
+    // 3. PROFİL GÖRÜNTÜLEME (!profil)
+    if (command === 'profil') {
+        const career = db.careers[message.author.id];
 
-                return message.channel.send({ embeds: [bitisEmbed] });
+        if (!career) {
+            return message.reply('❌ Henüz bir kariyerin yok! Başlatmak için: `!kariyerbaslat <İsim> <Numara> <Mevki>`');
+        }
+
+        const embed = new EmbedBuilder()
+            .setColor('#FFD700')
+            .setTitle(`👤 Futbolcu Profili: ${career.name}`)
+            .addFields(
+                { name: 'Forma Numarası', value: `#${career.number}`, inline: true },
+                { name: 'Mevki', value: career.position, inline: true },
+                { name: 'Reyting', value: `${career.rating} ⭐`, inline: true },
+                { name: 'Atılan Gol', value: `${career.goals}`, inline: true },
+                { name: 'Oynanan Maç', value: `${career.matchesPlayed}`, inline: true }
+            )
+            .setTimestamp();
+
+        return message.reply({ embeds: [embed] });
+    }
+
+    // 4. TAKIMLARI LİSTELEME (!takimlar)
+    if (command === 'takimlar') {
+        const embed = new EmbedBuilder()
+            .setColor('#1E90FF')
+            .setTitle('🏟️ Fifa 2026 Ligler ve Kulüpler');
+
+        for (const [key, team] of Object.entries(db.teams)) {
+            embed.addFields({
+                name: `[${key}] ${team.name} (${team.league})`,
+                value: `⭐ Güç: **${team.rating}** | 💰 Bütçe: **${team.budget}M€**\n👥 **Kadro:** ${team.players.join(', ')}`
+            });
+        }
+
+        return message.reply({ embeds: [embed] });
+    }
+
+    // 5. TRANSFER İŞLEMİ (!transfer realmadrid Icardi)
+    if (command === 'transfer') {
+        const teamKey = args[0]?.toLowerCase();
+        const player = args.slice(1).join(' ');
+
+        if (!teamKey || !player) {
+            return message.reply('❌ Eksik kullanım! Örnek: `!transfer realmadrid Icardi`');
+        }
+
+        if (!db.teams[teamKey]) {
+            return message.reply('❌ Geçersiz takım kısaltması! (Örn: `gs`, `realmadrid`, `inter`, `mancity`)');
+        }
+
+        let foundFromTeam = null;
+        for (const [key, team] of Object.entries(db.teams)) {
+            if (team.players.some(p => p.toLowerCase() === player.toLowerCase())) {
+                foundFromTeam = key;
+                break;
             }
+        }
 
-            // Pozisyon bazlı parametreler
-            const saldiranTakimKey = guncelMac.topSahibiTakim;
-            const savunanTakimKey = saldiranTakimKey === "t1" ? "t2" : "t1";
+        if (foundFromTeam === teamKey) {
+            return message.reply(`❌ Bu oyuncu zaten ${db.teams[teamKey].name} kadrosunda!`);
+        }
 
-            const saldiranKadro = saldiranTakimKey === "t1" ? guncelMac.t1Oyuncular : guncelMac.t2Oyuncular;
-            const savunanKadro = savunanTakimKey === "t1" ? guncelMac.t1Oyuncular : guncelMac.t2Oyuncular;
+        if (db.teams[teamKey].budget < 30) {
+            return message.reply('❌ Kulübün transfer bütçesi yetersiz! (Min: 30M€)');
+        }
 
-            const t1Kaleci = "T1 Kalecisi";
-            const t2Kaleci = "T2 Kalecisi";
-            const rakipKaleci = saldiranTakimKey === "t1" ? t2Kaleci : t1Kaleci;
+        db.teams[teamKey].budget -= 30;
+        db.teams[teamKey].players.push(player);
 
-            // ==========================================
-            // 🎲 OYUNCULAR HER POZİSYONDA TAMAMEN RANDOM SEÇİLİR!
-            // ==========================================
-            const mevcutOyuncu = saldiranKadro[Math.floor(Math.random() * saldiranKadro.length)];
+        if (foundFromTeam) {
+            db.teams[foundFromTeam].players = db.teams[foundFromTeam].players.filter(p => p.toLowerCase() !== player.toLowerCase());
+            db.teams[foundFromTeam].budget += 30;
+        }
 
-            // Pas/asist alacak oyuncu (mevcut oyuncu hariç)
-            const pasAlabilecekler = saldiranKadro.filter(p => p !== mevcutOyuncu);
-            const pasAlacak = pasAlabilecekler.length > 0 
-                ? pasAlabilecekler[Math.floor(Math.random() * pasAlabilecekler.length)] 
-                : mevcutOyuncu;
+        const embed = new EmbedBuilder()
+            .setColor('#FFD700')
+            .setTitle('🔄 Transfer Başarılı!')
+            .setDescription(`**${player}**, başarıyla **${db.teams[teamKey].name}** takımına katıldı!`)
+            .addFields({ name: 'Yeni Bütçe', value: `${db.teams[teamKey].budget}M€` });
 
-            // Defans yapan takımdan rastgele bir oyuncu (Kart veya blok için)
-            const savunanOyuncu = savunanKadro[Math.floor(Math.random() * savunanKadro.length)];
+        return message.reply({ embeds: [embed] });
+    }
 
-            let pozisyonMetni = "";
-            const rastgeleAksiyon = Math.random();
+    // 6. MAÇ SİMÜLASYONU (!mac gs realmadrid)
+    if (command === 'mac' || command === 'macsimulasyon') {
+        const homeKey = args[0]?.toLowerCase();
+        const awayKey = args[1]?.toLowerCase();
 
-            // --- 🟨 🟥 KART DURUMLARI (%12 Şans) ---
-            const kartSansi = Math.random();
-            if (kartSansi < 0.12 && savunanKadro.length > 1) {
-                const kartGorenOyuncu = savunanOyuncu; // Rastgele seçilen savunan oyuncu kart görüyor
+        if (!homeKey || !awayKey || !db.teams[homeKey] || !db.teams[awayKey]) {
+            return message.reply('❌ Geçerli iki takım kısaltması girmelisin! Örnek: `!mac gs realmadrid`');
+        }
 
-                if (!guncelMac.kartlar[kartGorenOyuncu]) {
-                    guncelMac.kartlar[kartGorenOyuncu] = { sari: 0, kirmizi: false };
-                }
+        const homeTeam = db.teams[homeKey];
+        const awayTeam = db.teams[awayKey];
 
-                const kartTipi = Math.random() > 0.85 ? "kirmizi" : "sari";
+        const homeGoals = Math.floor(Math.random() * (homeTeam.rating > awayTeam.rating ? 4 : 3));
+        const awayGoals = Math.floor(Math.random() * (awayTeam.rating > homeTeam.rating ? 3 : 4));
 
-                if (kartTipi === "sari") {
-                    guncelMac.kartlar[kartGorenOyuncu].sari += 1;
+        const embed = new EmbedBuilder()
+            .setColor('#FF4500')
+            .setTitle('⚽ Maç Sonucu - Fifa 2026')
+            .addFields(
+                { name: `${homeTeam.name} (${homeTeam.league})`, value: `**${homeGoals}**`, inline: true },
+                { name: `${awayTeam.name} (${awayTeam.league})`, value: `**${awayGoals}**`, inline: true }
+            )
+            .setTimestamp();
 
-                    if (guncelMac.kartlar[kartGorenOyuncu].sari === 1) {
-                        pozisyonMetni = `🟨 **SARI KART!** [${guncelMac.dakika}'] **${kartGorenOyuncu}** yaptığı sert müdahale sonrası sarı kart gördü!`;
-                    } else if (guncelMac.kartlar[kartGorenOyuncu].sari === 2) {
-                        guncelMac.kartlar[kartGorenOyuncu].kirmizi = true;
-                        
-                        // Kadrodan silerek 10 kişi kalmasını sağlıyoruz
-                        const oyuncuIndex = savunanKadro.indexOf(kartGorenOyuncu);
-                        if (oyuncuIndex > -1) savunanKadro.splice(oyuncuIndex, 1);
+        return message.reply({ embeds: [embed] });
+    }
 
-                        pozisyonMetni = `🟨🟥 **ÇİFT SARIDAN KIRMIZI!** [${guncelMac.dakika}'] **${kartGorenOyuncu}** ikinci sarı kartını görerek oyundan atıldı! Takımı **10 kişi** kaldı!`;
-                        
-                        YazCezayi(kartGorenOyuncu, "İkinci Sarı Kart");
-                    }
-                } else {
-                    guncelMac.kartlar[kartGorenOyuncu].kirmizi = true;
+    // 7. FİKSTÜR (!fikstur)
+    if (command === 'fikstur') {
+        const embed = new EmbedBuilder()
+            .setColor('#8A2BE2')
+            .setTitle('📅 Fifa 2026 Fikstür');
 
-                    const oyuncuIndex = savunanKadro.indexOf(kartGorenOyuncu);
-                    if (oyuncuIndex > -1) savunanKadro.splice(oyuncuIndex, 1);
+        db.matches.forEach((m, index) => {
+            embed.addFields({
+                name: `Maç ${index + 1}`,
+                value: `${db.teams[m.home].name} vs ${db.teams[m.away].name}`
+            });
+        });
 
-                    pozisyonMetni = `🟥 **DOĞRUDAN KIRMIZI KART!** [${guncelMac.dakika}'] **${kartGorenOyuncu}** doğrudan kırmızı kartla oyundan atıldı! Takımı **10 kişi** kaldı!`;
-                    
-                    YazCezayi(kartGorenOyuncu, "Doğrudan Kırmızı Kart");
-                }
-
-            } else if (rastgeleAksiyon < 0.30) {
-                // --- 👟 PAS SİSTEMİ (Kısa, Uzun, Ara Pas) ---
-                const pasSansi = Math.random();
-                if (pasSansi < 0.75) {
-                    const pasMetinleri = [
-                        `👟 **${mevcutOyuncu}** orta sahada kısa pasla topu **${pasAlacak}**'a aktardı.`,
-                        `🚀 **${mevcutOyuncu}** savunmadan uzun bir pasla topu ileri uçtaki **${pasAlacak}** ile buluşturdu!`,
-                        `⚡ **Müthiş ara pas!** **${mevcutOyuncu}** savunmanın arkasına nefis bir ara pası bıraktı, **${pasAlacak}** topla buluştu!`
-                    ];
-                    pozisyonMetni = pasMetinleri[Math.floor(Math.random() * pasMetinleri.length)];
-                    guncelMac.sahaBolgesi = "FORVET";
-                } else {
-                    pozisyonMetni = `❌ **Pas Arası!** **${mevcutOyuncu}** pas atmak istedi ama savunmada **${savunanOyuncu}** araya girdi ve topu kaptı!`;
-                    guncelMac.topSahibiTakim = savunanTakimKey; // Top rakibe geçti
-                    guncelMac.sahaBolgesi = "DEFANS";
-                }
-
-            } else if (rastgeleAksiyon < 0.50) {
-                // --- 🏃‍♂️ ÇALIM VE DEPAR ---
-                const calimSansi = Math.random();
-                if (calimSansi < 0.65) {
-                    const calimMetinleri = [
-                        `🏃‍♂️ **${mevcutOyuncu}** depar atarak çizgiden hızla sıyrıldı!`,
-                        `⚡ **Harika çalım!** **${mevcutOyuncu}** şık bir vücut çalımıyla rakibini ekarte etti!`
-                    ];
-                    pozisyonMetni = calimMetinleri[Math.floor(Math.random() * calimMetinleri.length)];
-                    guncelMac.sahaBolgesi = "FORVET";
-                } else {
-                    pozisyonMetni = `🛡️ **Top Kaybı!** **${mevcutOyuncu}** depar atmak isterken savunmada **${savunanOyuncu}** zamanında müdahale etti!`;
-                    guncelMac.topSahibiTakim = savunanTakimKey;
-                    guncelMac.sahaBolgesi = "ORTASAHA";
-                }
-
-            } else if (rastgeleAksiyon < 0.75) {
-                // --- ⚽ ŞUT SİSTEMİ (GOL / ASİST) ---
-                const sutSansi = Math.random();
-                if (sutSansi < 0.25) {
-                    pozisyonMetni = `🏃‍♂️ **Dışarı!** **${mevcutOyuncu}** kaleciyle karşı karşıya kaldı ama vuruşunda top doğrudan auta gitti!`;
-                    guncelMac.topSahibiTakim = savunanTakimKey;
-                    guncelMac.sahaBolgesi = "DEFANS";
-                } else if (sutSansi < 0.55) {
-                    if (saldiranTakimKey === "t1") guncelMac.skor1++; else guncelMac.skor2++;
-                    const asistci = pasAlacak !== mevcutOyuncu ? pasAlacak : "Asist Yok";
-                    
-                    pozisyonMetni = `🥅 **GOOOL!** [${guncelMac.dakika}'] **${mevcutOyuncu}** karşı karşıya pozisyonda nefis vurdu ve topu ağlara yolladı! \n⚽ **Golü Atan:** ${mevcutOyuncu} | 🅰️ **Asist:** ${asistci}`;
-                    
-                    guncelMac.goller.push({ golcu: mevcutOyuncu, asistci: asistci, dakika: guncelMac.dakika });
-                    guncelMac.topSahibiTakim = savunanTakimKey; // Santra için top rakibe geçer
-                    guncelMac.sahaBolgesi = "ORTASAHA";
-                } else if (sutSansi < 0.75) {
-                    pozisyonMetni = `🧤 **Kurtarış!** **${mevcutOyuncu}** karşı karşıya sert vurdu ama kaleci **${rakipKaleci}** devleşti ve golü önledi!`;
-                    guncelMac.topSahibiTakim = savunanTakimKey;
-                    guncelMac.sahaBolgesi = "DEFANS";
-                } else {
-                    pozisyonMetni = `📐 **Direkten Döndü!** **${mevcutOyuncu}** vurdu, direğe çarpan top oyun alanına geri döndü! Savunma tehlikeyi uzaklaştırıyor!`;
-                    if (Math.random() > 0.5) guncelMac.topSahibiTakim = savunanTakimKey;
-                    guncelMac.sahaBolgesi = "ORTASAHA";
-                }
-
-            } else {
-                // --- 🔀 FAUL / SERBEST VURUŞ ---
-                const faulSansi = Math.random();
-                if (faulSansi < 0.30) {
-                    if (saldiranTakimKey === "t1") guncelMac.skor1++; else guncelMac.skor2++;
-                    pozisyonMetni = `🥅 **GOOOL!** [${guncelMac.dakika}'] **${mevcutOyuncu}** serbest vuruştan harika bir plaseyle barajın üstünden topu doksana yolladı!`;
-                    
-                    guncelMac.goller.push({ golcu: mevcutOyuncu, asistci: "Asist Yok (Frikik)", dakika: guncelMac.dakika });
-                    guncelMac.topSahibiTakim = savunanTakimKey;
-                    guncelMac.sahaBolgesi = "ORTASAHA";
-                } else {
-                    pozisyonMetni = `❌ **Serbest vuruş kaçtı!** **${mevcutOyuncu}** frikikten kaleyi denedi ama top barajdan sekerek dışarı çıktı.`;
-                    guncelMac.topSahibiTakim = savunanTakimKey;
-                    guncelMac.sahaBolgesi = "DEFANS";
-                }
-            }
-
-            // Her 15 saniyede bir yeni mesaj olarak kanala atılan embed:
-            const anlikEmbed = new EmbedBuilder()
-                .setTitle(`🕒 Dakika: ${guncelMac.dakika}'`)
-                .setDescription(pozisyonMetni)
-                .setFooter({ text: `Bölge: ${guncelMac.sahaBolgesi} | Skor: ${guncelMac.skor1} - ${guncelMac.skor2}` })
-                .setColor('#f39c12');
-
-            message.channel.send({ embeds: [anlikEmbed] });
-
-        }, 15000); // Maç aksiyon süresi: Tam olarak 15 saniye!
+        return message.reply({ embeds: [embed] });
     }
 });
-
-// --- CEZA KAYDETME YARDIMCI FONKSİYONU ---
-function YazCezayi(oyuncuIsmi, sebep) {
-    let cezalar = {};
-    if (fs.existsSync('./cezalar.json')) {
-        try { cezalar = JSON.parse(fs.readFileSync('./cezalar.json', 'utf8')); } catch (e) { cezalar = {}; }
-    }
-    cezalar[oyuncuIsmi] = { cezaliMi: true, sebep: sebep };
-    fs.writeFileSync('./cezalar.json', JSON.stringify(cezalar, null, 4));
-}
-
 
 client.login(process.env.DISCORD_TOKEN);
-
+        
