@@ -67,4 +67,5 @@ client.on('messageCreate', async message => {
     }
 });
 
-client.login('SENIN_BOT_TOKENIN_BURAYA');
+client.login('BURAYA_GERCEK_TOKENINI_YAZ');
+
