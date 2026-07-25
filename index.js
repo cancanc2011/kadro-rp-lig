@@ -1,3 +1,4 @@
+
 const { Client, GatewayIntentBits, EmbedBuilder } = require('discord.js');
 
 const client = new Client({
@@ -13,11 +14,10 @@ const TARGET_GUILD_ID = '1522274201539579934';
 const PREFIX = '.';
 
 client.once('ready', () => {
-    console.log(`Bot aktif ve komutlar dinleniyor: ${client.user.tag}`);
+    console.log(`Bot aktif: ${client.user.tag}`);
 });
 
 client.on('messageCreate', async message => {
-    // Sadece senin sunucunda ve botlar dışındakileri dinle
     if (message.guild?.id !== TARGET_GUILD_ID) return;
     if (message.author.bot) return;
     if (!message.content.startsWith(PREFIX)) return;
@@ -25,25 +25,24 @@ client.on('messageCreate', async message => {
     const args = message.content.slice(PREFIX.length).trim().split(/ +/);
     const command = args.shift().toLowerCase();
 
+    // 🔍 .ara Komutu
     if (command === 'ara') {
         const query = args.join(' ');
 
         if (!query) {
             const errorEmbed = new EmbedBuilder()
                 .setColor('#FF0000')
-                .setTitle('🔍 Arama Hatası')
+                .setTitle('🔍 Hata')
                 .setDescription('Aramak için bir isim, mevkii veya bayrak girmelisin.\n*Örnek: `.ara M.svilar`, `.ara SNT`, `.ara 🇫🇷`*');
             return message.reply({ embeds: [errorEmbed] });
         }
 
-        // Sunucudaki tüm üyeleri çek
         try {
             await message.guild.members.fetch();
         } catch (err) {
             console.log('Üyeler çekilemedi:', err);
         }
 
-        // Kullanıcıların görünen adlarında aranan kelimeyi ara
         const matchedMembers = message.guild.members.cache.filter(member => 
             member.displayName.toLowerCase().includes(query.toLowerCase())
         );
@@ -58,10 +57,10 @@ client.on('messageCreate', async message => {
 
         let descriptionList = [];
         matchedMembers.forEach(member => {
-            descriptionList.push(`${member} — (${member.displayName})`);
+            descriptionList.push(`${member} \n(${member.displayName})`);
         });
 
-        const resultsText = descriptionList.slice(0, 15).join('\n');
+        const resultsText = descriptionList.slice(0, 15).join('\n\n');
 
         const resultEmbed = new EmbedBuilder()
             .setColor('#1E90FF')
@@ -75,3 +74,4 @@ client.on('messageCreate', async message => {
 });
 
 client.login(process.env.TOKEN);
+             
