@@ -18,7 +18,7 @@ client.on('messageCreate', async message => {
     const args = message.content.slice(1).trim().split(/ +/);
     const komut = args.shift().toLowerCase();
 
-    // !yardim komutu
+    // .yardim komutu
     if (komut === 'yardim' || komut === 'yardım') {
         const embed = new EmbedBuilder()
             .setTitle("🛠️ Futbol Ligi Botu - Yardım & Komutlar")
