@@ -67,5 +67,5 @@ client.on('messageCreate', async message => {
     }
 });
 
-client.login('BURAYA_GERCEK_TOKENINI_YAZ');
+client.login('TOKENIN_BURAYA_GELECEK');
 
