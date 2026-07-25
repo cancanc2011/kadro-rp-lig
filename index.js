@@ -1,4 +1,3 @@
-
 const { Client, GatewayIntentBits, EmbedBuilder } = require('discord.js');
 
 const client = new Client({
@@ -18,6 +17,8 @@ client.once('ready', () => {
 });
 
 client.on('messageCreate', async message => {
+    console.log(`Mesaj geldi: ${message.content} - Yazan: ${message.author.tag}`);
+
     if (message.guild?.id !== TARGET_GUILD_ID) return;
     if (message.author.bot) return;
     if (!message.content.startsWith(PREFIX)) return;
@@ -74,4 +75,3 @@ client.on('messageCreate', async message => {
 });
 
 client.login(process.env.TOKEN);
-             
