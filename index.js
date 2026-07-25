@@ -17,10 +17,8 @@ client.once('ready', () => {
 });
 
 client.on('messageCreate', async message => {
-    console.log(`Mesaj geldi: ${message.content} - Yazan: ${message.author.tag}`);
-
-    if (message.guild?.id !== TARGET_GUILD_ID) return;
     if (message.author.bot) return;
+    if (message.guild?.id !== TARGET_GUILD_ID) return;
     if (!message.content.startsWith(PREFIX)) return;
 
     const args = message.content.slice(PREFIX.length).trim().split(/ +/);
