@@ -18,7 +18,7 @@ client.on('messageCreate', async message => {
     const args = message.content.slice(1).trim().split(/ +/);
     const komut = args.shift().toLowerCase();
 
-    // .yardim komutu
+    // !yardim komutu
     if (komut === 'yardim' || komut === 'yardım') {
         const embed = new EmbedBuilder()
             .setTitle("🛠️ Futbol Ligi Botu - Yardım & Komutlar")
@@ -195,4 +195,5 @@ client.on('messageCreate', async message => {
     }
 });
 
-client.login('TOKEN_BURAYA');
+client.login(process.env.TOKEN);
+
