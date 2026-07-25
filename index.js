@@ -67,5 +67,6 @@ client.on('messageCreate', async message => {
     }
 });
 
-client.login('TOKENIN_BURAYA_GELECEK');
+client.login(process.env.TOKEN);
+
 
