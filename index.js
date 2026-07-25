@@ -3,9 +3,9 @@ const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBit
 
 const KURUCU_ROL = "1522274570986586172";
 const TD_ROL = "<@&1522696820751601685>";
-constBASKAN_ROL = "<@&1522697217264062656>";
+const BASKAN_ROL = "<@&1522697217264062656>";
 
-const takimlar = new Map(); // Takım Adı -> { sahip, ad, oyuncular: [], td, baskan, dizilis }
+const takimlar = new Map();
 const maclar = new Map();
 
 client.on('ready', () => {
@@ -31,7 +31,7 @@ client.on('messageCreate', async message => {
                 },
                 {
                     name: "📋 Genel & Kadro Komutları",
-                    value: "`.takimlist` - Kayıtlı tüm takımları listeler.\n`.kadro TakımAdı` - Belirtilen takımın kadrosunu, TD'sini, Başkanını ve oyuncularını gösterir.\n`.oyuncual @kullanici Takım Mevki İlk11/Yedek` - Takıma oyuncu ekler (Transfer).\n`.oyuncucikar @kullanici TakımAdı` - Oyuncuyu kadrodan çıkarır.\n`.dizilisdegistir 4-3-3` - Takım dizilişini günceller."
+                    value: "`.takimlist` - Kayıtlı tüm takımları listeler.\n`.kadro TakımAdı` - Belirtilen takımın kadrosunu, TD'sini, Başkanını ve oyuncularını gösterir.\n`.oyuncual @kullanici Takım Mevki İlk11/Yedek` - Takıma oyuncu ekler.\n`.oyuncucikar @kullanici TakımAdı` - Oyuncuyu kadrodan çıkarır.\n`.dizilisdegistir 4-3-3` - Takım dizilişini günceller."
                 }
             )
             .setTimestamp();
@@ -53,12 +53,12 @@ client.on('messageCreate', async message => {
             sahip: hedefUser.id,
             ad: takimAdi,
             oyuncular: [],
-            teknikDirektor: "<@&1522696820751601685>",
-            baskan: "<@&1522697217264062656>",
+            teknikDirektor: TD_ROL,
+            baskan: BASKAN_ROL,
             dizilis: "4-3-3"
         });
 
-        return message.reply(`✅ **${takimAdi}** başarıyla kuruldu! Sahibi: <@${hedefUser.id}>\n📌 Teknik Direktör: <@&1522696820751601685> | Başkan: <@&1522697217264062656>`);
+        return message.reply(`✅ **${takimAdi}** başarıyla kuruldu! Sahibi: <@${hedefUser.id}>\n📌 Teknik Direktör: ${TD_ROL} | Başkan: ${BASKAN_ROL}`);
     }
 
     // .takimsil @kullanci Beşiktaş
@@ -90,12 +90,12 @@ client.on('messageCreate', async message => {
         return message.reply({ embeds: [embed] });
     }
 
-    // .Kadro Beşiktaş
+    // .kadro Beşiktaş
     if (komut === 'kadro') {
         const takimAdi = args.join(' ').toLowerCase();
         const takim = takimlar.get(takimAdi);
 
-        if (!takim) return message.reply("Böyle bir takım bulunamadı! Kullanım: `.Kadro Beşiktaş`");
+        if (!takim) return message.reply("Böyle bir takım bulunamadı! Kullanım: `.kadro Beşiktaş`");
 
         const embed = new EmbedBuilder()
             .setTitle(`📌 ${takim.ad} Kadrosu`)
@@ -109,7 +109,7 @@ client.on('messageCreate', async message => {
         return message.reply({ embeds: [embed] });
     }
 
-    // .oyuncual @kullanci Beşiktaş Mevki İlk11/yedek (Transfer / Oyuncu Ekleme)
+    // .oyuncual @kullanci Beşiktaş Mevki İlk11/yedek
     if (komut === 'oyuncual') {
         const hedefUser = message.mentions.users.first();
         const takimAdi = args[1];
