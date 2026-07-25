@@ -14,40 +14,6 @@ const PREFIX = '.';
 
 client.once('ready', () => {
     console.log(`Bot aktif: ${client.user.tag}`);
-    client.user.setActivity('Athena LİG RP', { type: 3 });
-});
-
-client.on('guildMemberAdd', async member => {
-    if (member.guild.id !== TARGET_GUILD_ID) return;
-    
-    const logChannelId = 'KANAL_ID_BURAYA'; 
-    const channel = member.guild.channels.cache.get(logChannelId);
-    if (!channel) return;
-
-    const embed = new EmbedBuilder()
-        .setColor('#00FF7F')
-        .setTitle('📥 Sunucuya Yeni Oyuncu Katıldı!')
-        .setDescription(`Hoş geldin ${member}! Profilin ve forman hazırlanıyor.`)
-        .setThumbnail(member.user.displayAvatarURL({ dynamic: true }))
-        .setTimestamp();
-
-    channel.send({ embeds: [embed] });
-});
-
-client.on('guildMemberRemove', async member => {
-    if (member.guild.id !== TARGET_GUILD_ID) return;
-
-    const logChannelId = 'KANAL_ID_BURAYA';
-    const channel = member.guild.channels.cache.get(logChannelId);
-    if (!channel) return;
-
-    const embed = new EmbedBuilder()
-        .setColor('#FF4500')
-        .setTitle('📤 Oyuncu Ayrıldı')
-        .setDescription(`**${member.user.tag}** sunucudan ayrıldı.`)
-        .setTimestamp();
-
-    channel.send({ embeds: [embed] });
 });
 
 client.on('messageCreate', async message => {
@@ -101,5 +67,4 @@ client.on('messageCreate', async message => {
     }
 });
 
-client.login('SENIN
-             _BOT_TOKENIN_BURAYA');
+client.login('SENIN_BOT_TOKENIN_BURAYA');
