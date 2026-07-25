@@ -1,19 +1,22 @@
-
 const { Client, GatewayIntentBits, EmbedBuilder } = require('discord.js');
 
 const client = new Client({
     intents: [
         GatewayIntentBits.Guilds,
         GatewayIntentBits.GuildMessages,
-        GatewayIntentBits.MessageContent
+        GatewayIntentBits.MessageContent,
+        GatewayIntentBits.GuildMembers
     ]
 });
 
+// Veritabanı veya Oyuncu Listesi Örneği
 const db = {
     "1522274201539579934": {
-        maxVal: 200,
-        slots: 10,
-        players: []
+        players: [
+            { id: "688410703866101795", name: "J.P-Mateta", pos: "SNT", flag: "🇫🇷", value: "50M" },
+            { id: "1207655717612421161", name: "F.Torres", pos: "SNT", flag: "🇪🇸", value: "50G" },
+            { id: "1082675732049829960", name: "D.Upamecano", pos: "STP", flag: "🇫🇷", value: "50G" }
+        ]
     }
 };
 
@@ -23,7 +26,6 @@ client.once('ready', () => {
 
 client.on('messageCreate', async message => {
     if (message.author.bot) return;
-
     if (message.guild && message.guild.id !== "1522274201539579934") return;
 
     const prefix = '.';
@@ -32,31 +34,37 @@ client.on('messageCreate', async message => {
     const args = message.content.slice(prefix.length).trim().split(/ +/);
     const command = args.shift().toLowerCase();
 
-    if (command === 'degersiralama') {
-        const guildId = message.guild ? message.guild.id : "1522274201539579934";
-        const market = db[guildId] || { maxVal: 200, slots: 10, players: [] };
+    // 🔍 .ara Komutu
+    if (command === 'ara') {
+        const query = args.join(' ').trim();
+        if (!query) {
+            return message.reply('🔍 **Hata:** Aramak için bir isim, mevki veya bayrak girmelisin.');
+        }
+
+        const guildId = message.guild.id;
+        const market = db[guildId] || { players: [] };
+
+        // İsme, mevkiye veya bayrağa göre filtreleme
+        const results = market.players.filter(p => 
+            p.name.toLowerCase().includes(query.toLowerCase()) ||
+            p.pos.toLowerCase().includes(query.toLowerCase()) ||
+            p.flag.includes(query)
+        );
 
         const embed = new EmbedBuilder()
-            .setColor('#00FF7F')
-            .setTitle('📈 Oyuncu Değer Sıralaması')
-            .setDescription(`Maksimum Sınır: **${market.maxVal}M€** | Maksimum Kişi: **${market.slots}**`);
+            .setColor('#2F3136')
+            .setTitle(`🔍 Arama Sonuçları: ${query}`);
 
-        if (market.players.length === 0) {
-            embed.addFields(
-                { 
-                    name: 'Oyuncu | Mevki | Bayrak | Değer', 
-                    value: '*Henüz kayıtlı oyuncu yok. Profiller eklendikçe otomatik sıralanacaktır.*\n\nÖrnek:\nOyuncu | Mevki | Bayrak | 100M€\nOyuncu | Mevki | Bayrak | 99M€' 
-                }
-            );
+        if (results.length === 0) {
+            embed.setDescription('❌ Aranan kriterlere uygun futbolcu bulunamadı.');
         } else {
-            const sorted = market.players.sort((a, b) => b.value - a.value).slice(0, market.slots);
-            const listText = sorted.map((p, index) => `${index + 1}. ${p.name} | ${p.pos} | ${p.flag} | ${p.value}M€`).join('\n');
-            embed.addFields({ name: 'Oyuncu | Mevki | Bayrak | Değer', value: listText });
+            const listText = results.map(p => `<@${p.id}>\n(${p.name} | ${p.flag} | ${p.pos} | ${p.value})`).join('\n\n');
+            embed.addFields({ name: `⚽ Futbolcular (${results.length})`, value: listText });
         }
 
         return message.reply({ embeds: [embed] });
     }
 });
 
-client.login(process.env.DIS
-             CORD_TOKEN);
+client.login(process.env.DI
+             SCORD_TOKEN);
