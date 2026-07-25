@@ -1,11 +1,8 @@
 {
-  "name": "fifa-2026-discord-bot",
+  "name": "rp-futbol-ligi-botu",
   "version": "1.0.0",
-  "description": "Fifa 2026 Discord Bot",
+  "description": "Discord RP Futbol Ligi Botu",
   "main": "index.js",
-  "scripts": {
-    "start": "node index.js"
-  },
   "dependencies": {
     "discord.js": "^14.14.1"
   }
