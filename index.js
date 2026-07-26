@@ -1,199 +1,133 @@
-const { Client, GatewayIntentBits, EmbedBuilder } = require('discord.js');
-const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent] });
+const { Client, GatewayIntentBits, PermissionsBitField } = require('discord.js');
 
-const KURUCU_ROL = "1522274570986586172";
-const TD_ROL = "<@&1522696820751601685>";
-const BASKAN_ROL = "<@&1522697217264062656>";
-
-const takimlar = new Map();
-const maclar = new Map();
-
-client.on('ready', () => {
-    console.log(`Bot aktif: ${client.user.tag}`);
+const client = new Client({
+  intents: [
+    GatewayIntentBits.Guilds,
+    GatewayIntentBits.GuildMessages,
+    GatewayIntentBits.MessageContent,
+    GatewayIntentBits.GuildMembers,
+    GatewayIntentBits.GuildBans
+  ]
 });
 
-client.on('messageCreate', async message => {
-    if (message.author.bot || !message.content.startsWith('.')) return;
+const PREFIX = '.';
 
-    const args = message.content.slice(1).trim().split(/ +/);
-    const komut = args.shift().toLowerCase();
+client.on('messageCreate', async (message) => {
+  if (message.author.bot || !message.guild || !message.content.startsWith(PREFIX)) return;
 
-    // .yardim komutu
-    if (komut === 'yardim' || komut === 'yardım') {
-        const embed = new EmbedBuilder()
-            .setTitle("🛠️ Futbol Ligi Botu - Yardım & Komutlar")
-            .setDescription("Aşağıdaki komutları kullanarak ligi, takımları ve maçları yönetebilirsiniz.")
-            .setColor("Blue")
-            .addFields(
-                {
-                    name: "👑 Kurucu & Yetkili Komutları",
-                    value: "`.takimkur @kullanici TakımAdı` - Yeni takım kurar.\n`.takimsil @kullanici TakımAdı` - Takımı siler.\n`.macbaslat Takım1 vs Takım2` - Maçı başlatır.\n`.macdurdur` - Maçı durdurur.\n`.macterkarbaslat` - Maçı devam ettirir."
-                },
-                {
-                    name: "📋 Genel & Kadro Komutları",
-                    value: "`.takimlist` - Kayıtlı tüm takımları listeler.\n`.kadro TakımAdı` - Belirtilen takımın kadrosunu, TD'sini, Başkanını ve oyuncularını gösterir.\n`.oyuncual @kullanici Takım Mevki İlk11/Yedek` - Takıma oyuncu ekler.\n`.oyuncucikar @kullanici TakımAdı` - Oyuncuyu kadrodan çıkarır.\n`.dizilisdegistir 4-3-3` - Takım dizilişini günceller."
-                }
-            )
-            .setTimestamp();
+  const args = message.content.slice(PREFIX.length).trim().split(/ +/);
+  const command = args.shift().toLowerCase();
 
-        return message.reply({ embeds: [embed] });
+  // ----------------------------------------------------
+  // .ban @kullanıcı [sebep]
+  // Gerekli Yetki: Üyeleri Engelle (BanMembers)
+  // ----------------------------------------------------
+  if (command === 'ban') {
+    if (!message.member.permissions.has(PermissionsBitField.Flags.BanMembers)) {
+      return message.reply('❌ Bu komutu kullanmak için **Üyeleri Engelle** yetkisine sahip olmalısın.');
     }
 
-    // .takimkur @kullanci Beşiktaş
-    if (komut === 'takimkur') {
-        if (!message.member.roles.cache.has(KURUCU_ROL)) {
-            return message.reply("Bu komutu sadece Kurucu kişi kullanabilir!");
-        }
-        const hedefUser = message.mentions.users.first();
-        const takimAdi = args.slice(1).join(' ');
+    const member = message.mentions.members.first();
+    if (!member) return message.reply('Lütfen engellenecek bir üye etiketleyin.');
+    if (!member.bannable) return message.reply('Bu üyeyi engellemek için yetkim yetersiz.');
 
-        if (!hedefUser || !takimAdi) return message.reply("Kullanım: `.takimkur @kullanıcı TakımAdı`");
+    const reason = args.slice(1).join(' ') || 'Sebep belirtilmedi';
+    await member.ban({ reason });
+    return message.channel.send(`🚫 **${member.user.tag}** sunucudan engellendi. (Sebep: ${reason})`);
+  }
 
-        takimlar.set(takimAdi.toLowerCase(), {
-            sahip: hedefUser.id,
-            ad: takimAdi,
-            oyuncular: [],
-            teknikDirektor: TD_ROL,
-            baskan: BASKAN_ROL,
-            dizilis: "4-3-3"
-        });
-
-        return message.reply(`✅ **${takimAdi}** başarıyla kuruldu! Sahibi: <@${hedefUser.id}>\n📌 Teknik Direktör: ${TD_ROL} | Başkan: ${BASKAN_ROL}`);
+  // ----------------------------------------------------
+  // .banlist
+  // Gerekli Yetki: Üyeleri Engelle (BanMembers)
+  // ----------------------------------------------------
+  if (command === 'banlist') {
+    if (!message.member.permissions.has(PermissionsBitField.Flags.BanMembers)) {
+      return message.reply('❌ Bu komutu kullanmak için **Üyeleri Engelle** yetkisine sahip olmalısın.');
     }
 
-    // .takimsil @kullanci Beşiktaş
-    if (komut === 'takimsil') {
-        if (!message.member.roles.cache.has(KURUCU_ROL)) {
-            return message.reply("Bu komutu sadece Kurucu kişi kullanabilir!");
-        }
-        const takimAdi = args.slice(1).join(' ');
-        if (!takimlar.has(takimAdi.toLowerCase())) return message.reply("Böyle bir takım bulunamadı!");
+    try {
+      const bans = await message.guild.bans.fetch();
+      if (bans.size === 0) return message.reply('Sunucuda engellenmiş kimse yok.');
 
-        takimlar.delete(takimAdi.toLowerCase());
-        return message.reply(`🗑️ **${takimAdi}** silindi.`);
+      const list = bans.map(b => `• **${b.user.tag}** (ID: ${b.user.id})`).slice(0, 20).join('\n');
+      return message.channel.send(`📜 **Engellenen Üyeler Listesi (${bans.size}):**\n${list}`);
+    } catch (err) {
+      return message.reply('Ban listesi alınırken bir hata oluştu.');
+    }
+  }
+
+  // ----------------------------------------------------
+  // .unban <kullanıcı_id>
+  // Gerekli Yetki: Üyeleri Engelle (BanMembers)
+  // ----------------------------------------------------
+  if (command === 'unban') {
+    if (!message.member.permissions.has(PermissionsBitField.Flags.BanMembers)) {
+      return message.reply('❌ Bu komutu kullanmak için **Üyeleri Engelle** yetkisine sahip olmalısın.');
     }
 
-    // .takimlist
-    if (komut === 'takimlist') {
-        if (takimlar.size === 0) return message.reply("Kayıtlı takım bulunmuyor.");
-        
-        let liste = "";
-        takimlar.forEach((t) => {
-            liste += `⚽ **${t.ad}** - Kurucu/Sahip: <@${t.sahip}>\n`;
-        });
+    const userId = args[0];
+    if (!userId) return message.reply('Lütfen yasağı kaldırılacak kişinin kullanıcı ID\'sini girin.');
 
-        const embed = new EmbedBuilder()
-            .setTitle("🏆 Kayıtlı Takımlar")
-            .setDescription(liste)
-            .setColor("Gold");
+    try {
+      await message.guild.members.unban(userId);
+      return message.channel.send(`✅ ID: \`${userId}\` olan kullanıcının yasağı kaldırıldı.`);
+    } catch (err) {
+      return message.reply('Kullanıcı bulunamadı veya zaten yasaklı değil.');
+    }
+  }
 
-        return message.reply({ embeds: [embed] });
+  // ----------------------------------------------------
+  // .kick @kullanıcı [sebep]
+  // Gerekli Yetki: Üyeleri At (KickMembers)
+  // ----------------------------------------------------
+  if (command === 'kick') {
+    if (!message.member.permissions.has(PermissionsBitField.Flags.KickMembers)) {
+      return message.reply('❌ Bu komutu kullanmak için **Üyeleri At** yetkisine sahip olmalısın.');
     }
 
-    // .kadro Beşiktaş
-    if (komut === 'kadro') {
-        const takimAdi = args.join(' ').toLowerCase();
-        const takim = takimlar.get(takimAdi);
+    const member = message.mentions.members.first();
+    if (!member) return message.reply('Lütfen atılacak bir üye etiketleyin.');
+    if (!member.kickable) return message.reply('Bu üyeyi atmak için yetkim yetersiz.');
 
-        if (!takim) return message.reply("Böyle bir takım bulunamadı! Kullanım: `.kadro Beşiktaş`");
+    const reason = args.slice(1).join(' ') || 'Sebep belirtilmedi';
+    await member.kick(reason);
+    return message.channel.send(`👞 **${member.user.tag}** sunucudan atıldı. (Sebep: ${reason})`);
+  }
 
-        const embed = new EmbedBuilder()
-            .setTitle(`📌 ${takim.ad} Kadrosu`)
-            .addFields(
-                { name: "👔 Yönetim", value: `Teknik Direktör: ${takim.teknikDirektor}\nBaşkan: ${takim.baskan}` },
-                { name: "📋 Diziliş", value: `\`${takim.dizilis}\``, inline: true },
-                { name: "👥 Oyuncular & Mevkiler", value: takim.oyuncular.length > 0 ? takim.oyuncular.join('\n') : "Henüz oyuncu eklenmemiş." }
-            )
-            .setColor("Blue");
-
-        return message.reply({ embeds: [embed] });
+  // ----------------------------------------------------
+  // .mute @kullanıcı [dakika]
+  // Gerekli Yetki: Üyelere Zaman Aşımı Uygula (ModerateMembers)
+  // ----------------------------------------------------
+  if (command === 'mute') {
+    if (!message.member.permissions.has(PermissionsBitField.Flags.ModerateMembers)) {
+      return message.reply('❌ Bu komutu kullanmak için **Üyelere Zaman Aşımı Uygula** yetkisine sahip olmalısın.');
     }
 
-    // .oyuncual @kullanci Beşiktaş Mevki İlk11/yedek
-    if (komut === 'oyuncual') {
-        const hedefUser = message.mentions.users.first();
-        const takimAdi = args[1];
-        const mevki = args[2];
-        const durum = args[3] || "İlk 11";
+    const member = message.mentions.members.first();
+    const duration = parseInt(args[1]) || 10; // Varsayılan: 10 dakika
 
-        if (!hedefUser || !takimAdi || !mevki) return message.reply("Kullanım: `.oyuncual @kullanıcı TakımAdı Mevki İlk11/Yedek`");
-        
-        const takim = takimlar.get(takimAdi.toLowerCase());
-        if (!takim) return message.reply("Belirtilen isimde bir takım bulunamadı!");
+    if (!member) return message.reply('Lütfen susturulacak bir üye etiketleyin.');
+    if (!member.moderatable) return message.reply('Bu üyeyi susturmak için yetkim yetersiz.');
 
-        takim.oyuncular.push(`<@${hedefUser.id}> - **${mevki}** (${durum})`);
-        return message.reply(`✅ <@${hedefUser.id}>, **${takim.ad}** takımına **${mevki}** mevkiinde (${durum}) transfer edildi!`);
+    await member.timeout(duration * 60 * 1000, 'Zaman aşımı uygulandı');
+    return message.channel.send(`🔇 **${member.user.tag}**, **${duration} dakika** boyunca susturuldu.`);
+  }
+
+  // ----------------------------------------------------
+  // .unmute @kullanıcı
+  // Gerekli Yetki: Üyelere Zaman Aşımı Uygula (ModerateMembers)
+  // ----------------------------------------------------
+  if (command === 'unmute') {
+    if (!message.member.permissions.has(PermissionsBitField.Flags.ModerateMembers)) {
+      return message.reply('❌ Bu komutu kullanmak için **Üyelere Zaman Aşımı Uygula** yetkisine sahip olmalısın.');
     }
 
-    // .oyuncucikar @kullanci Beşiktaş
-    if (komut === 'oyuncucikar') {
-        const hedefUser = message.mentions.users.first();
-        const takimAdi = args.slice(1).join(' ');
-        
-        if (!hedefUser || !takimAdi) return message.reply("Kullanım: `.oyuncucikar @kullanıcı TakımAdı`");
+    const member = message.mentions.members.first();
+    if (!member) return message.reply('Lütfen susturması kaldırılacak bir üye etiketleyin.');
 
-        const takim = takimlar.get(takimAdi.toLowerCase());
-        if (!takim) return message.reply("Takım bulunamadı.");
-        
-        const oncekiBoyut = takim.oyuncular.length;
-        takim.oyuncular = takim.oyuncular.filter(o => !o.includes(hedefUser.id));
-
-        if(takim.oyuncular.length === oncekiBoyut) {
-            return message.reply("Bu kullanıcı bu takımın kadrosunda bulunamadı.");
-        }
-
-        return message.reply(`❌ Oyuncu <@${hedefUser.id}>, **${takim.ad}** kadrosundan çıkarıldı.`);
-    }
-
-    // .dizilisdegistir 4-3-3
-    if (komut === 'dizilisdegistir') {
-        const dizilis = args[0];
-        if (!dizilis) return message.reply("Lütfen bir diziliş belirtin (Örn: `4-3-3` veya `4-4-2`)");
-        return message.reply(`📋 Takım dizilişi **${dizilis}** olarak güncellendi.`);
-    }
-
-    // .macbaslat Beşiktaş vs Fenerbahçe
-    if (komut === 'macbaslat') {
-        if (!message.member.roles.cache.has(KURUCU_ROL)) {
-            return message.reply("Bu maç sadece kurucu veya yetkili kişiler tarafından başlatılabilir!");
-        }
-
-        const macMetni = args.join(' ');
-        if (!macMetni.includes('vs')) return message.reply("Kullanım: `.macbaslat Takim1 vs Takim2`");
-
-        const [t1, t2] = macMetni.split('vs').map(s => s.trim());
-        
-        const embed = new EmbedBuilder()
-            .setTitle("⚽ Maç Başladı!")
-            .setDescription(`**${t1}** vs **${t2}** karşılaşması hakem düdüğüyle başladı!\n\nDakika: ` + "`0'`")
-            .setColor("Green");
-
-        const msg = await message.channel.send({ embeds: [embed] });
-        maclar.set(msg.id, { t1, t2, dakika: 0 });
-
-        setTimeout(async () => {
-            const golEden = "Ahmet (NPC)";
-            const asistEden = "Mehmet (NPC)";
-            
-            const ozetEmbed = new EmbedBuilder()
-                .setTitle("📢 Maç Özeti & Gelişme")
-                .setDescription(`⚽ **GOL!** Dakika **24'**\nGol Atan: **${golEden}**\nAsist: **${asistEden}**\n\n📌 *Ceza sahası içinde 1v1 kaldı! Kaleci vs Oyuncu etkileşimi gerçekleşti.*`)
-                .setColor("Orange");
-
-            await message.channel.send({ embeds: [ozetEmbed] });
-        }, 5000);
-    }
-
-    // .macdurdur
-    if (komut === 'macdurdur') {
-        return message.reply("⏸️ Maç durduruldu.");
-    }
-    
-    // .macterkarbaslat
-    if (komut === 'macterkarbaslat') {
-        return message.reply("▶️ Maç kaldığı yerden devam ediyor.");
-    }
+    await member.timeout(null);
+    return message.channel.send(`🔊 **${member.user.tag}** kullanıcısının susturması kaldırıldı.`);
+  }
 });
 
-client.login(process.env.TOKEN);
-
+client.login('YOUR_BOT_TOKEN_HERE');
