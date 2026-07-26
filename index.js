@@ -129,5 +129,10 @@ client.on('messageCreate', async (message) => {
     return message.channel.send(`🔊 **${member.user.tag}** kullanıcısının susturması kaldırıldı.`);
   }
 });
+// dotenv paketini projenin en üstüne eklediğinden emin ol
+require('dotenv').config();
 
-client.login('YOUR_BOT_TOKEN_HERE');
+// ... komutlar ve diğer kodlar ...
+
+// Token'ı tırnak içinde elle yazmak yerine process.env'den çek:
+client.login(process.env.TOKEN);
