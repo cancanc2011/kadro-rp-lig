@@ -12,6 +12,10 @@ const client = new Client({
 
 const PREFIX = '.';
 
+client.on('ready', () => {
+  console.log(`Bot aktif: ${client.user.tag}`);
+});
+
 client.on('messageCreate', async (message) => {
   if (message.author.bot || !message.guild || !message.content.startsWith(PREFIX)) return;
 
@@ -20,7 +24,6 @@ client.on('messageCreate', async (message) => {
 
   // ----------------------------------------------------
   // .ban @kullanıcı [sebep]
-  // Gerekli Yetki: Üyeleri Engelle (BanMembers)
   // ----------------------------------------------------
   if (command === 'ban') {
     if (!message.member.permissions.has(PermissionsBitField.Flags.BanMembers)) {
@@ -38,7 +41,6 @@ client.on('messageCreate', async (message) => {
 
   // ----------------------------------------------------
   // .banlist
-  // Gerekli Yetki: Üyeleri Engelle (BanMembers)
   // ----------------------------------------------------
   if (command === 'banlist') {
     if (!message.member.permissions.has(PermissionsBitField.Flags.BanMembers)) {
@@ -58,7 +60,6 @@ client.on('messageCreate', async (message) => {
 
   // ----------------------------------------------------
   // .unban <kullanıcı_id>
-  // Gerekli Yetki: Üyeleri Engelle (BanMembers)
   // ----------------------------------------------------
   if (command === 'unban') {
     if (!message.member.permissions.has(PermissionsBitField.Flags.BanMembers)) {
@@ -78,7 +79,6 @@ client.on('messageCreate', async (message) => {
 
   // ----------------------------------------------------
   // .kick @kullanıcı [sebep]
-  // Gerekli Yetki: Üyeleri At (KickMembers)
   // ----------------------------------------------------
   if (command === 'kick') {
     if (!message.member.permissions.has(PermissionsBitField.Flags.KickMembers)) {
@@ -96,7 +96,6 @@ client.on('messageCreate', async (message) => {
 
   // ----------------------------------------------------
   // .mute @kullanıcı [dakika]
-  // Gerekli Yetki: Üyelere Zaman Aşımı Uygula (ModerateMembers)
   // ----------------------------------------------------
   if (command === 'mute') {
     if (!message.member.permissions.has(PermissionsBitField.Flags.ModerateMembers)) {
@@ -115,7 +114,6 @@ client.on('messageCreate', async (message) => {
 
   // ----------------------------------------------------
   // .unmute @kullanıcı
-  // Gerekli Yetki: Üyelere Zaman Aşımı Uygula (ModerateMembers)
   // ----------------------------------------------------
   if (command === 'unmute') {
     if (!message.member.permissions.has(PermissionsBitField.Flags.ModerateMembers)) {
@@ -130,11 +128,5 @@ client.on('messageCreate', async (message) => {
   }
 });
 
-// dotenv paketini projenin en üstüne eklediğinden emin ol
-require('dotenv').config();
-
-// ... komutlar ve diğer kodlar ...
-
-// Token'ı tırnak içinde elle yazmak yerine process.env'den çek:
+// Railway Variables kısmından TOKEN'ı otomatik çeker (dotenv gerekmez)
 client.login(process.env.TOKEN);
-
