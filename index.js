@@ -130,4 +130,11 @@ client.on('messageCreate', async (message) => {
   }
 });
 
-client.login('YOUR_BOT_TOKEN_HERE');
+// dotenv paketini projenin en üstüne eklediğinden emin ol
+require('dotenv').config();
+
+// ... komutlar ve diğer kodlar ...
+
+// Token'ı tırnak içinde elle yazmak yerine process.env'den çek:
+client.login(process.env.TOKEN);
+
