@@ -6,7 +6,8 @@ const client = new Client({
     GatewayIntentBits.GuildMessages,
     GatewayIntentBits.MessageContent,
     GatewayIntentBits.GuildMembers,
-    GatewayIntentBits.GuildBans
+    GatewayIntentBits.GuildBans,
+    GatewayIntentBits.GuildPresences
   ]
 });
 
@@ -65,7 +66,7 @@ client.on('messageCreate', async (message) => {
       .setTitle('📖 RP Lig Bot Komutları')
       .setThumbnail(client.user.displayAvatarURL({ dynamic: true }))
       .addFields(
-        { name: '🛡️ Moderasyon Komutları', value: '`.ban @kullanıcı [sebep]` - Engeller\n`.banlist` - Numaralı engel listesi\n`.unban <id>` - Engeli kaldırır\n`.kick @kullanıcı` - Sunucudan atar\n`.mute @kullanıcı [dk]` - Susturur\n`.unmute @kullanıcı` - Susturmayı kaldırır\n`.afk [sebep]` - AFK moduna geçer\n`.mvp @kullanıcı` - Haftanın MVP\'sini seçer (Yetkili)', inline: false },
+        { name: '🛡️ Moderasyon Komutları', value: '`.ban @kullanıcı [sebep]` - Engeller\n`.banlist` - Numaralı engel listesi\n`.unban <id>` - Engeli kaldırır\n`.kick @kullanıcı` - Sunucudan atar\n`.mute @kullanıcı [dk]` - Susturur\n`.unmute @kullanıcı` - Susturmayı kaldırır\n`.afk [sebep]` - AFK moduna geçer\n`.mvp @kullanıcı` - Haftanın MVP\'sini seçer (Yetkili)\n`.sunucu` - Sunucu detaylı bilgilerini gösterir', inline: false },
         { name: '💰 Ekonomi', value: '`.bal (@kullanıcı)` - Bakiye görüntüle\n`.send @kullanıcı miktar` - Para gönder', inline: false },
         { name: '👑 Yetkili - Para', value: '`.paraekle @kullanıcı miktar` - Cash ekle\n`.paracikar @kullanıcı miktar` - Cash çıkar', inline: false },
         { name: '💎 Yetkili - Değer', value: '`.degerekle (@kullanıcı) miktar` - Değer ekle/ayarla', inline: false },
@@ -87,6 +88,55 @@ client.on('messageCreate', async (message) => {
   // ==========================================
   // 2. KOMUTLAR
   // ==========================================
+
+  // ------------------------------------------
+  // .sunucu / .sunucubilgi (Herkes Bakabilir)
+  // ------------------------------------------
+  if (command === 'sunucu' || command === 'sunucubilgi' || command === 'server' || command === 'serverinfo') {
+    try {
+      const { guild } = message;
+      
+      // Kanal türlerini kategorize edelim
+      const channels = guild.channels.cache;
+      const metinKanallari = channels.filter(c => c.type === 0).size; // 0 = GUILD_TEXT
+      const sesKanallari = channels.filter(c => c.type === 2).size;   // 2 = GUILD_VOICE
+      const kategoriler = channels.filter(c => c.type === 4).size;    // 4 = GUILD_CATEGORY
+
+      // Banlı sayısı (Eğer botun yetkisi yoksa 0 veya Hata vermemesi için korumalı)
+      let banSayisi = 0;
+      try {
+        const bans = await guild.bans.fetch();
+        banSayisi = bans.size;
+      } catch (e) {
+        banSayisi = 'Yetersiz Bot Yetkisi';
+      }
+
+      const sunucuEmbed = new EmbedBuilder()
+        .setColor('#2ecc71')
+        .setTitle(`📊 ${guild.name} - Sunucu Bilgileri`)
+        .setThumbnail(guild.iconURL({ dynamic: true }) || client.user.displayAvatarURL())
+        .addFields(
+          { name: '👑 Sunucu Sahibi', value: `<@${guild.ownerId}>`, inline: true },
+          { name: '📅 Açılış Tarihi', value: `<t:${Math.floor(guild.createdTimestamp / 1000)}:R>`, inline: true },
+          { name: '👥 Üye Sayısı', value: `\`${guild.memberCount}\` Kullanıcı`, inline: true },
+          
+          { name: '🚀 Takviye (Boost)', value: `\`${guild.premiumSubscriptionCount || 0}\` Boost (Seviye ${guild.premiumTier})`, inline: true },
+          { name: '🚫 Banlanan Üye', value: `\`${banSayisi}\` Yasaklı`, inline: true },
+          { name: '🎭 Rol Sayısı', value: `\`${guild.roles.cache.size}\` Adet Rol`, inline: true },
+
+          { name: '💬 Metin Kanalı', value: `\`${metinKanallari}\` Kanal`, inline: true },
+          { name: '🔊 Ses Kanalı', value: `\`${sesKanallari}\` Kanal`, inline: true },
+          { name: '📁 Kategori', value: `\`${kategoriler}\` Kategori`, inline: true }
+        )
+        .setFooter({ text: `Sunucu ID: ${guild.id}`, iconURL: guild.iconURL() })
+        .setTimestamp();
+
+      return message.channel.send({ embeds: [sunucuEmbed] });
+    } catch (err) {
+      console.error(err);
+      return message.reply('Sunucu bilgileri çekilirken bir hata oluştu.');
+    }
+  }
 
   // ------------------------------------------
   // .mvp @kullanıcı (Yetkili Özel)
@@ -130,7 +180,6 @@ client.on('messageCreate', async (message) => {
         return message.channel.send({ embeds: [bosEmbed] });
       }
 
-      // Maksimum 10 kişiyi alıp numaralandırıyoruz (1-10 arası)
       const banArray = Array.from(bans.values()).slice(0, 10);
       const listeMetni = banArray.map((b, index) => {
         const sebep = b.reason ? `(Sebep: ${b.reason})` : '(Sebep belirtilmemiş)';
