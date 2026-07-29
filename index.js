@@ -23,7 +23,7 @@ client.on('messageCreate', async (message) => {
   if (message.author.bot || !message.guild) return;
 
   // ==========================================
-  // 1. AFK KONTROL SİSTEMİ (Mesaj Atma & Etiketleme)
+  // 1. AFK KONTROL SİSTEMİ
   // ==========================================
   
   // Mesaj atan kişi AFK ise, AFK modundan çıkar
@@ -42,7 +42,7 @@ client.on('messageCreate', async (message) => {
     );
   }
 
-  // Mesajda etiketlenen biri AFK ise, etiketleyen kişiye uyarı ver
+  // Mesajda etiketlenen biri AFK ise, etiketleyen kişiye uyarısını geç
   if (message.mentions.members.size > 0) {
     message.mentions.members.forEach((member) => {
       if (afkMap.has(member.id)) {
@@ -58,14 +58,14 @@ client.on('messageCreate', async (message) => {
     });
   }
 
-  // Özel Komut Kontrolü: -yardim (Prefix '.' olmasa da çalışması için)
+  // Özel Komut Kontrolü: -yardim
   if (message.content.toLowerCase() === '-yardim' || message.content.toLowerCase() === '-help') {
     const embed = new EmbedBuilder()
       .setColor('#3498db')
       .setTitle('📖 RP Lig Bot Komutları')
       .setThumbnail(client.user.displayAvatarURL({ dynamic: true }))
       .addFields(
-        { name: '🛡️ Moderasyon Komutları', value: '`.ban @kullanıcı [sebep]` - Engeller\n`.banlist` - Engel listesi\n`.unban <id>` - Engeli kaldırır\n`.kick @kullanıcı` - Sunucudan atar\n`.mute @kullanıcı [dk]` - Susturur\n` .mvp \n`.unmute @kullanıcı` - Susturmayı kaldırır\n`.afk [sebep]` - AFK moduna geçer', inline: false },
+        { name: '🛡️ Moderasyon Komutları', value: '`.ban @kullanıcı [sebep]` - Engeller\n`.banlist` - Numaralı engel listesi\n`.unban <id>` - Engeli kaldırır\n`.kick @kullanıcı` - Sunucudan atar\n`.mute @kullanıcı [dk]` - Susturur\n`.unmute @kullanıcı` - Susturmayı kaldırır\n`.afk [sebep]` - AFK moduna geçer\n`.mvp @kullanıcı` - Haftanın MVP\'sini seçer (Yetkili)', inline: false },
         { name: '💰 Ekonomi', value: '`.bal (@kullanıcı)` - Bakiye görüntüle\n`.send @kullanıcı miktar` - Para gönder', inline: false },
         { name: '👑 Yetkili - Para', value: '`.paraekle @kullanıcı miktar` - Cash ekle\n`.paracikar @kullanıcı miktar` - Cash çıkar', inline: false },
         { name: '💎 Yetkili - Değer', value: '`.degerekle (@kullanıcı) miktar` - Değer ekle/ayarla', inline: false },
@@ -78,15 +78,78 @@ client.on('messageCreate', async (message) => {
     return message.channel.send({ embeds: [embed] });
   }
 
-  // Diğer nokta (.) ile başlayan komutların kontrolü
+  // Nokta (.) ile başlayan komutların kontrolü
   if (!message.content.startsWith(PREFIX)) return;
 
   const args = message.content.slice(PREFIX.length).trim().split(/ +/);
   const command = args.shift().toLowerCase();
 
   // ==========================================
-  // 2. MODERASYON KOMUTLARI
+  // 2. KOMUTLAR
   // ==========================================
+
+  // ------------------------------------------
+  // .mvp @kullanıcı (Yetkili Özel)
+  // ------------------------------------------
+  if (command === 'mvp') {
+    if (!message.member.permissions.has(PermissionsBitField.Flags.ManageNicknames) && 
+        !message.member.permissions.has(PermissionsBitField.Flags.Administrator)) {
+      return message.reply('❌ Bu komutu kullanmak için yetkin yetersiz.');
+    }
+
+    const member = message.mentions.members.first();
+    if (!member) return message.reply('Lütfen haftanın MVP\'si seçilecek oyuncuyu etiketleyin!');
+
+    const embed = new EmbedBuilder()
+      .setColor('#f1c40f')
+      .setTitle('🌟 HAFTANIN MVP\'Sİ Belli Oldu!')
+      .setDescription(`Tebrikler ${member}! Bu haftanın en değerli oyuncusu (MVP) seçildin! 🏆⚽`)
+      .setThumbnail(member.user.displayAvatarURL({ dynamic: true }))
+      .setFooter({ text: 'RP Lig Yönetimi', iconURL: message.guild.iconURL() })
+      .setTimestamp();
+
+    return message.channel.send({ embeds: [embed] });
+  }
+
+  // ------------------------------------------
+  // .banlist (Embedlı & Numaralı & Max 10 Kişi)
+  // ------------------------------------------
+  if (command === 'banlist') {
+    if (!message.member.permissions.has(PermissionsBitField.Flags.BanMembers)) {
+      return message.reply('❌ Bu komutu kullanmak için **Üyeleri Engelle** yetkisine sahip olmalısın.');
+    }
+
+    try {
+      const bans = await message.guild.bans.fetch();
+      if (bans.size === 0) {
+        const bosEmbed = new EmbedBuilder()
+          .setColor('#2ecc71')
+          .setTitle('📜 Engellenen Üyeler Listesi')
+          .setDescription('Sunucuda yasaklanmış/engellenmiş üye bulunmuyor.')
+          .setFooter({ text: `Toplam Ban: 0` });
+        return message.channel.send({ embeds: [bosEmbed] });
+      }
+
+      // Maksimum 10 kişiyi alıp numaralandırıyoruz (1-10 arası)
+      const banArray = Array.from(bans.values()).slice(0, 10);
+      const listeMetni = banArray.map((b, index) => {
+        const sebep = b.reason ? `(Sebep: ${b.reason})` : '(Sebep belirtilmemiş)';
+        return `**${index + 1}.** \`${b.user.tag}\` - ID: \`${b.user.id}\` ${sebep}`;
+      }).join('\n');
+
+      const banEmbed = new EmbedBuilder()
+        .setColor('#e74c3c')
+        .setTitle('📜 Engellenen Üyeler Listesi (İlk 10)')
+        .setDescription(listeMetni)
+        .setFooter({ text: `Sunucudaki Toplam Ban Sayısı: ${bans.size}` })
+        .setTimestamp();
+
+      return message.channel.send({ embeds: [banEmbed] });
+    } catch (err) {
+      console.error(err);
+      return message.reply('Ban listesi alınırken bir hata oluştu.');
+    }
+  }
 
   // ------------------------------------------
   // .ban @kullanıcı [sebep]
@@ -103,25 +166,6 @@ client.on('messageCreate', async (message) => {
     const reason = args.slice(1).join(' ') || 'Sebep belirtilmedi';
     await member.ban({ reason });
     return message.channel.send(`🚫 **${member.user.tag}** sunucudan engellendi. (Sebep: ${reason})`);
-  }
-
-  // ------------------------------------------
-  // .banlist
-  // ------------------------------------------
-  if (command === 'banlist') {
-    if (!message.member.permissions.has(PermissionsBitField.Flags.BanMembers)) {
-      return message.reply('❌ Bu komutu kullanmak için **Üyeleri Engelle** yetkisine sahip olmalısın.');
-    }
-
-    try {
-      const bans = await message.guild.bans.fetch();
-      if (bans.size === 0) return message.reply('Sunucuda engellenmiş kimse yok.');
-
-      const list = bans.map(b => `• **${b.user.tag}** (ID: ${b.user.id})`).slice(0, 20).join('\n');
-      return message.channel.send(`📜 **Engellenen Üyeler Listesi (${bans.size}):**\n${list}`);
-    } catch (err) {
-      return message.reply('Ban listesi alınırken bir hata oluştu.');
-    }
   }
 
   // ------------------------------------------
