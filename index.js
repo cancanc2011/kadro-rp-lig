@@ -24,8 +24,9 @@ const client = new Client({
 
 const PREFIX = '.';
 
-// 🎯 YETKİLİ ROL ID'Sİ
+// YETKİLİ ROL VE LOG KANAL ID'LERİ
 const YETKILI_ROL_ID = '1532424266690203769';
+const UYARI_LOG_KANAL_ID = '1532424266690203769'; 
 
 // Veri Haritaları
 const afkMap = new Map();
@@ -33,7 +34,7 @@ const activeGiveaways = new Map();
 const warnMap = new Map();
 
 client.on('ready', () => {
-  console.log(`Bot başarıyla aktif oldu: ${client.user.tag}`);
+  console.log(`Bot basariyla aktif oldu: ${client.user.tag}`);
 });
 
 // Yetki Kontrolü
@@ -70,32 +71,105 @@ client.on('messageCreate', async (message) => {
   if (afkMap.has(message.author.id)) {
     const afkData = afkMap.get(message.author.id);
     afkMap.delete(message.author.id);
-    const afkOlmaZamani = Math.floor(afkData.timestamp / 1000);
-    message.reply(`👋 Hoş geldin **${message.author.username}**! AFK modundan çıkarıldın. (Sebep: ${afkData.reason})`);
+    message.reply(`Hos geldin **${message.author.username}**! AFK modundan cikarildin. (Sebep: ${afkData.reason})`);
   }
 
   if (message.mentions.members.size > 0) {
     message.mentions.members.forEach((member) => {
       if (afkMap.has(member.id)) {
         const afkData = afkMap.get(member.id);
-        message.reply(`💤 **${member.user.username}** şu anda AFK! Sebep: ${afkData.reason}`);
+        message.reply(`**${member.user.username}** su anda AFK! Sebep: ${afkData.reason}`);
       }
     });
   }
 
-  // -yardim Menüsü
-  if (message.content.toLowerCase() === '-yardim' || message.content.toLowerCase() === '-help') {
+  // ==========================================
+  // YARDIM MENÜSÜ (-yardim veya .yardim)
+  // ==========================================
+  if (
+    message.content.toLowerCase() === '-yardim' || 
+    message.content.toLowerCase() === '.yardim' || 
+    message.content.toLowerCase() === '-help'
+  ) {
     const embed = new EmbedBuilder()
       .setColor('#3498db')
-      .setTitle('📖 RP Lig Bot Komutları')
+      .setTitle('RP Lig Bot Komutlari')
       .setThumbnail(client.user.displayAvatarURL({ dynamic: true }))
       .addFields(
-        { name: '📢 Duyuru Komutu', value: '`.kanalbildir #kanal <mesaj>` - Belirtilen kanala duyuru atar (Yetkili)', inline: false },
-        { name: '⚠️ Uyarı Komutları', value: '`.uyari @kullanıcı [sebep]` - Uyarı verir (Yetkili)\n`.uyarilar (@kullanıcı)` - Kullanıcının uyarılarını gösterir\n`.uyarisil @kullanıcı [id]` - Uyarı siler (Yetkili)\n`.uyarilist` - Tüm sunucu uyarılarını butonlu listeler (Yetkili)', inline: false },
-        { name: '🎉 Çekiliş Komutları', value: '`.cekilis <süre> <kazanan> <ödül>` - Çekiliş başlatır (Yetkili)\n`.cekilisiptal <mesaj_id>` - Çekilişi iptal eder (Yetkili)', inline: false },
-        { name: '🛡️ Moderasyon Komutları', value: '`.ban @kullanıcı [sebep]`\n`.unban <id>`\n`.kick @kullanıcı`\n`.mute @kullanıcı [dk]`\n`.unmute @kullanıcı`\n`.afk [sebep]`\n`.mvp @kullanıcı`\n`.sunucu`', inline: false }
+        { 
+          name: 'Moderasyon Komutlari', 
+          value: 
+            '`.ban @kullanici [sebep]` - Engeller\n' +
+            '`.banlist` - Numarali engel listesi\n' +
+            '`.unban <id>` - Engeli kaldirir\n' +
+            '`.kick @kullanici` - Sunucudan atar\n' +
+            '`.mute @kullanici [dk]` - Susturur\n' +
+            '`.unmute @kullanici` - Susturmayi kaldirir\n' +
+            '`.afk [sebep]` - AFK moduna gecer\n' +
+            '`.mvp @kullanici` - MVP secer\n' +
+            '`.sunucu` - Sunucu bilgilerini gosterir', 
+          inline: false 
+        },
+        { 
+          name: 'Bildirim & Uyari Komutlari', 
+          value: 
+            '`.kanalbildir #kanal <mesaj>` - Belirtilen kanala duyuru atar (Yetkili)\n' +
+            '`.uyari @kullanici [sebep]` - Uyari verir (Yetkili)\n' +
+            '`.uyarilar (@kullanici)` - Kullanicinin uyarilarini gosterir\n' +
+            '`.uyarisil @kullanici [id]` - Uyari siler (Yetkili)\n' +
+            '`.uyarilist` - Tum sunucu uyarilarini butonlu listeler (Yetkili)', 
+          inline: false 
+        },
+        { 
+          name: 'Cekilis Komutlari', 
+          value: 
+            '`.cekilis <sure> <kazanan> <odul>` - Cekilis baslatir (Yetkili)\n' +
+            '`.cekilisiptal <mesaj_id>` - Cekilisi iptal eder (Yetkili)', 
+          inline: false 
+        },
+        { 
+          name: 'Ekonomi', 
+          value: 
+            '`.bal (@kullanici)` - Bakiye goruntule\n' +
+            '`.send @kullanici miktar` - Para gonder', 
+          inline: false 
+        },
+        { 
+          name: 'Yetkili - Para', 
+          value: 
+            '`.paraekle @kullanici miktar` - Cash ekle\n' +
+            '`.paracikar @kullanici miktar` - Cash cikar', 
+          inline: false 
+        },
+        { 
+          name: 'Yetkili - Deger', 
+          value: 
+            '`.degerekle (@kullanici) miktar` - Deger ekle/ayarla', 
+          inline: false 
+        },
+        { 
+          name: 'Mini Oyunlar', 
+          value: 
+            '`.pen` - Penalti at\n' +
+            '`.ant` - Antrenman yap\n' +
+            '`.kaleant` - Kaleci antrenmani', 
+          inline: false 
+        },
+        { 
+          name: 'Sistemler', 
+          value: 
+            '`.kramponal` - Krampon Satin al\n' +
+            '`.eldivenal` - Eldiven Satin al', 
+          inline: false 
+        },
+        { 
+          name: 'Profil', 
+          value: 
+            '`.profil (@kullanici)` - Tum istatistikleri gor', 
+          inline: false 
+        }
       )
-      .setFooter({ text: 'RP Lig Yönetim Sistemi' });
+      .setFooter({ text: 'RP Lig Sistemi | Miktarlarda k/m/b kisaltmalari kullanilabilir' });
 
     return message.channel.send({ embeds: [embed] });
   }
@@ -105,35 +179,41 @@ client.on('messageCreate', async (message) => {
   const args = message.content.slice(PREFIX.length).trim().split(/ +/);
   const command = args.shift().toLowerCase();
 
-  // .kanalbildir
+  // ==========================================
+  // KANAL BİLDİRİMİ KOMUTU
+  // ==========================================
   if (command === 'kanalbildir' || command === 'duyuru') {
-    if (!hasAuth(message.member)) return message.reply('❌ Uyarı kanka, bu komut için yetkin yok!');
+    if (!hasAuth(message.member)) return message.reply('Uyari kanka, bu komut icin yetkin yok!');
 
     const channel = message.mentions.channels.first();
     const notificationText = args.slice(1).join(' ');
 
     if (!channel || !notificationText) {
-      return message.reply('⚠️ **Uyarı kanka!** Lütfen bir kanal etiketle ve göndereceğin mesajı yaz.\n**Doğru Kullanım:** `.kanalbildir #kanal <mesajınız>`');
+      return message.reply('Uyari kanka! Lutfen bir kanal etiketle ve gonderecegin mesaji yaz.\nDogru Kullanim: `.kanalbildir #kanal <mesajiniz>`');
     }
 
     const notifyEmbed = new EmbedBuilder()
       .setColor('#3498db')
-      .setTitle('📢 RP LİGİ BİLDİRİMİ')
+      .setTitle('RP LIGI BILDIRIMI')
       .setDescription(notificationText)
-      .setFooter({ text: `Yönetim Bildirimi | Gönderen: ${message.author.tag}` })
+      .setFooter({ text: `Yonetim Bildirimi | Gonderen: ${message.author.tag}` })
       .setTimestamp();
 
     await channel.send({ embeds: [notifyEmbed] });
-    return message.reply(`✅ Bildirim başarıyla ${channel} kanalına gönderildi.`);
+    return message.reply(`Bildirim basariyla ${channel} kanalina gonderildi.`);
   }
 
-  // .uyari
+  // ==========================================
+  // UYARI SİSTEMİ (LOGOSUZ VE EMOJİSİZ)
+  // ==========================================
+
+  // .uyari @kullanici [sebep]
   if (command === 'uyari' || command === 'warn') {
-    if (!hasAuth(message.member)) return message.reply('❌ Uyarı kanka, bu komut için yetkin yok!');
+    if (!hasAuth(message.member)) return message.reply('Uyari kanka, bu komut icin yetkin yok!');
 
     const member = message.mentions.members.first();
-    if (!member) return message.reply('⚠️ **Uyarı kanka!** Kimi uyaracağını etiketlemelisin.\n**Doğru Kullanım:** `.uyari @kullanici <sebep>`');
-    if (member.id === message.author.id) return message.reply('⚠️ Uyarı kanka, kendini uyaramazsın!');
+    if (!member) return message.reply('Uyari kanka! Kimi uyaracagini etiketlemelisin.\nDogru Kullanim: `.uyari @kullanici <sebep>`');
+    if (member.id === message.author.id) return message.reply('Uyari kanka, kendini uyaramazsin!');
 
     const reason = args.slice(1).join(' ') || 'Sebep belirtilmedi';
 
@@ -149,54 +229,89 @@ client.on('messageCreate', async (message) => {
 
     userWarns.push(warnObj);
 
+    // Kullanıcıya DM
     try {
-      await member.send(`⚠️ **${message.guild.name}** sunucusunda uyarıldın!\n💬 **Sebep:** ${reason}\n👮‍♂️ **Yetkili:** ${message.author.tag}`);
+      await member.send(`${message.guild.name} sunucusunda uyarildin!\nSebep: ${reason}\nYetkili: ${message.author.tag}`);
     } catch (e) {}
 
     const embed = new EmbedBuilder()
       .setColor('#e67e22')
-      .setTitle('⚠️ Üye Uyarıldı')
+      .setTitle('Uye Uyarildi')
       .addFields(
-        { name: '👤 Uyarılan Üye', value: `${member} (\`${member.id}\`)`, inline: true },
-        { name: '👮‍♂️ Yetkili', value: `${message.author}`, inline: true },
-        { name: '📊 Toplam Uyarı', value: `\`${userWarns.length}\``, inline: true },
-        { name: '💬 Sebep', value: reason, inline: false }
+        { name: 'Uyarilan Uye', value: `${member} (${member.id})`, inline: true },
+        { name: 'Yetkili', value: `${message.author}`, inline: true },
+        { name: 'Toplam Uyari', value: `${userWarns.length}`, inline: true },
+        { name: 'Sebep', value: reason, inline: false }
       )
       .setTimestamp();
+
+    // Log Kanalına Gönder
+    const logChannel = message.guild.channels.cache.get(UYARI_LOG_KANAL_ID);
+    if (logChannel) {
+      logChannel.send({ embeds: [embed] }).catch(() => {});
+    }
 
     return message.channel.send({ embeds: [embed] });
   }
 
-  // .uyarilar
+  // .uyarilar @kullanici
   if (command === 'uyarilar' || command === 'uyarim') {
     const targetMember = message.mentions.members.first() || message.member;
     const userWarns = warnMap.get(targetMember.id);
 
     if (!userWarns || userWarns.length === 0) {
-      return message.reply(`✅ ${targetMember.id === message.author.id ? 'Hiç uyarın yok!' : 'Bu kullanıcının hiç uyarısı yok.'}`);
+      return message.reply(`${targetMember.id === message.author.id ? 'Hic uyarin yok!' : 'Bu kullanicinin hic uyarisi yok.'}`);
     }
 
-    const description = userWarns.map(w => `🆔 **Uyarı ID:** #${w.id}\n💬 **Sebep:** ${w.reason}\n👮‍♂️ **Yetkili:** \`${w.moderator}\` (<t:${w.date}:R>)`).join('\n\n');
+    const description = userWarns.map(w => `Uyari ID: #${w.id}\nSebep: ${w.reason}\nYetkili: ${w.moderator} (<t:${w.date}:R>)`).join('\n\n');
 
     const embed = new EmbedBuilder()
       .setColor('#f1c40f')
-      .setTitle(`📜 ${targetMember.user.username} - Uyarı Listesi`)
+      .setTitle(`${targetMember.user.username} - Uyari Listesi`)
       .setDescription(description)
-      .setFooter({ text: `Toplam Uyarı: ${userWarns.length}` });
+      .setFooter({ text: `Toplam Uyari: ${userWarns.length}` });
 
     return message.reply({ embeds: [embed] });
   }
 
-  // .uyarilist (Sayfalı & Butonlu)
+  // .uyarisil @kullanici [id]
+  if (command === 'uyarisil' || command === 'unwarn') {
+    if (!hasAuth(message.member)) return message.reply('Uyari kanka, bu komut icin yetkin yok!');
+
+    const member = message.mentions.members.first();
+    const warnId = parseInt(args[1]);
+
+    if (!member || isNaN(warnId)) {
+      return message.reply('Uyari kanka! Lutfen bir kullanici etiketle ve silinecek uyari ID\'sini gir.\nDogru Kullanim: `.uyarisil @kullanici <uyari_id>`');
+    }
+
+    const userWarns = warnMap.get(member.id);
+    if (!userWarns || userWarns.length === 0) return message.reply('Uyari kanka, bu kullanicinin hic uyarisi yok ki!');
+
+    const index = userWarns.findIndex(w => w.id === warnId);
+    if (index === -1) return message.reply(`Uyari kanka, bu kullanicinin #${warnId} ID'li bir uyarisi bulunamadi.`);
+
+    userWarns.splice(index, 1);
+    
+    // Log Kanalına Silindi Bilgisi At
+    const logChannel = message.guild.channels.cache.get(UYARI_LOG_KANAL_ID);
+    if (logChannel) {
+      logChannel.send(`Uyari Silindi: ${member.user.tag} kullanicisinin #${warnId} numarali uyarisi ${message.author.tag} tarafindan silindi.`).catch(() => {});
+    }
+
+    return message.channel.send(`${member.user.tag} kullanicisinin #${warnId} numarali uyarisi silindi.`);
+  }
+
+  // .uyarilist
   if (command === 'uyarilist' || command === 'uyarilistesi') {
-    if (!hasAuth(message.member)) return message.reply('❌ Uyarı kanka, bu komut için yetkin yok!');
+    if (!hasAuth(message.member)) return message.reply('Uyari kanka, bu komut icin yetkin yok!');
 
     let allWarns = [];
     warnMap.forEach((warns, userId) => {
       warns.forEach(w => allWarns.push({ userId, ...w }));
     });
 
-    if (allWarns.length === 0) return message.reply('✅ Sunucuda kayıtlı aktif uyarı bulunmuyor.');
+    if (allWarns.length === 0) return message.reply('Sunucuda kayitli aktif uyari bulunmuyor.');
 
     const pageSize = 5;
     const totalPages = Math.ceil(allWarns.length / pageSize);
@@ -207,21 +322,21 @@ client.on('messageCreate', async (message) => {
       const currentWarns = allWarns.slice(start, start + pageSize);
 
       const description = currentWarns.map((w, index) => {
-        return `**${start + index + 1}.** <@${w.userId}>\n` +
-               `┗ 🆔 **Uyarı ID:** #${w.id} | 💬 **Sebep:** ${w.reason}\n` +
-               `┗ 👮‍♂️ **Yetkili:** \`${w.moderator}\` (<t:${w.date}:R>)`;
+        return `${start + index + 1}. <@${w.userId}>\n` +
+               `Uyari ID: #${w.id} | Sebep: ${w.reason}\n` +
+               `Yetkili: ${w.moderator} (<t:${w.date}:R>)`;
       }).join('\n\n');
 
       return new EmbedBuilder()
         .setColor('#f1c40f')
-        .setTitle(`📜 Sunucu Uyarı Listesi`)
+        .setTitle('Sunucu Uyari Listesi')
         .setDescription(description)
-        .setFooter({ text: `Sayfa ${page + 1} / ${totalPages} | Toplam Uyarı: ${allWarns.length}` });
+        .setFooter({ text: `Sayfa ${page + 1} / ${totalPages} | Toplam Uyari: ${allWarns.length}` });
     };
 
     const getRow = (page) => new ActionRowBuilder().addComponents(
-      new ButtonBuilder().setCustomId('prev_page').setLabel('◀️ Geri').setStyle(ButtonStyle.Primary).setDisabled(page === 0),
-      new ButtonBuilder().setCustomId('next_page').setLabel('İleri ▶️').setStyle(ButtonStyle.Primary).setDisabled(page === totalPages - 1)
+      new ButtonBuilder().setCustomId('prev_page').setLabel('Geri').setStyle(ButtonStyle.Primary).setDisabled(page === 0),
+      new ButtonBuilder().setCustomId('next_page').setLabel('Ileri').setStyle(ButtonStyle.Primary).setDisabled(page === totalPages - 1)
     );
 
     const listMessage = await message.channel.send({ embeds: [generateEmbed(currentPage)], components: [getRow(currentPage)] });
@@ -229,7 +344,7 @@ client.on('messageCreate', async (message) => {
 
     collector.on('collect', async (interaction) => {
       if (interaction.user.id !== message.author.id) {
-        return interaction.reply({ content: '❌ Bu butonları sadece komutu yazan kullanabilir.', ephemeral: true });
+        return interaction.reply({ content: 'Bu butonlari sadece komutu yazan kullanabilir.', ephemeral: true });
       }
 
       if (interaction.customId === 'prev_page') currentPage--;
@@ -241,53 +356,34 @@ client.on('messageCreate', async (message) => {
     return;
   }
 
-  // .uyarisil
-  if (command === 'uyarisil' || command === 'unwarn') {
-    if (!hasAuth(message.member)) return message.reply('❌ Uyarı kanka, bu komut için yetkin yok!');
-
-    const member = message.mentions.members.first();
-    const warnId = parseInt(args[1]);
-
-    if (!member || isNaN(warnId)) {
-      return message.reply('⚠️ **Uyarı kanka!** Lütfen bir kullanıcı etiketle ve silinecek uyarı ID\'sini gir.\n**Doğru Kullanım:** `.uyarisil @kullanici <uyari_id>`');
-    }
-
-    const userWarns = warnMap.get(member.id);
-    if (!userWarns || userWarns.length === 0) return message.reply('❌ Uyarı kanka, bu kullanıcının hiç uyarısı yok ki!');
-
-    const index = userWarns.findIndex(w => w.id === warnId);
-    if (index === -1) return message.reply(`❌ Uyarı kanka, bu kullanıcının **#${warnId}** ID'li bir uyarısı bulunamadı.`);
-
-    userWarns.splice(index, 1);
-    return message.channel.send(`✅ **${member.user.tag}** kullanıcısının **#${warnId}** numaralı uyarısı silindi.`);
-  }
-
-  // .cekilis
+  // ==========================================
+  // ÇEKİLİŞ KOMUTU
+  // ==========================================
   if (command === 'cekilis' || command === 'çekiliş') {
-    if (!hasAuth(message.member)) return message.reply('❌ Uyarı kanka, bu komut için yetkin yok!');
+    if (!hasAuth(message.member)) return message.reply('Uyari kanka, bu komut icin yetkin yok!');
 
     const sureStr = args[0];
     const kazananSayisi = parseInt(args[1]);
     const odul = args.slice(2).join(' ');
 
     if (!sureStr || !kazananSayisi || isNaN(kazananSayisi) || !odul) {
-      return message.reply('⚠️ **Uyarı kanka!** Çekiliş başlatmak için tüm alanları doldurmalısın.\n**Örnek:** `.cekilis 10m 1 VIP Rolü`');
+      return message.reply('Uyari kanka! Cekilis baslatmak icin tum alanlari doldurmalisin.\nOrnek: `.cekilis 10m 1 VIP Rolu`');
     }
 
     const sureMs = parseDuration(sureStr);
-    if (!sureMs) return message.reply('❌ Geçersiz süre! Örnekler: `10s`, `15m`, `2h`');
+    if (!sureMs) return message.reply('Gecersiz sure! Ornekler: `10s`, `15m`, `2h`');
 
     const bitisZamani = Math.floor((Date.now() + sureMs) / 1000);
 
     const embed = new EmbedBuilder()
       .setColor('#f1c40f')
-      .setTitle(`🎉 ÇEKİLİŞ: ${odul}`)
+      .setTitle(`CEKILIS: ${odul}`)
       .setDescription(
-        `Çekilişe katılmak için **🎉** tepkisine tıklayın!\n\n` +
-        `🎁 **Ödül:** ${odul}\n` +
-        `👑 **Düzenleyen:** ${message.author}\n` +
-        `🏆 **Kazanan Sayısı:** ${kazananSayisi}\n` +
-        `⏰ **Bitiş:** <t:${bitisZamani}:R>`
+        `Cekilise katilmak icin 🎉 tepkisine tiklayin!\n\n` +
+        `Odul: ${odul}\n` +
+        `Duzenleyen: ${message.author}\n` +
+        `Kazanan Sayisi: ${kazananSayisi}\n` +
+        `Bitis: <t:${bitisZamani}:R>`
       );
 
     const giveawayMsg = await message.channel.send({ embeds: [embed] });
@@ -303,7 +399,7 @@ client.on('messageCreate', async (message) => {
         const katilanlar = users.filter(u => !u.bot);
 
         if (katilanlar.size === 0) {
-          return fetchedMsg.edit({ embeds: [EmbedBuilder.from(embed).setColor('#e74c3c').setDescription('❌ Çekiliş katılım olmadığı için iptal edildi.')] });
+          return fetchedMsg.edit({ embeds: [EmbedBuilder.from(embed).setColor('#e74c3c').setDescription('Cekilis katilim olmadigi icin iptal edildi.')] });
         }
 
         const katilanArray = Array.from(katilanlar.values());
@@ -315,20 +411,18 @@ client.on('messageCreate', async (message) => {
         }
 
         const kazananMetni = kazananlar.map(k => `${k}`).join(', ');
-        await fetchedMsg.edit({ embeds: [EmbedBuilder.from(embed).setColor('#2ecc71').setDescription(`🎉 **KAZANAN(LAR):** ${kazananMetni}`)] });
-        await message.channel.send(`🎊 Tebrikler ${kazananMetni}! **${odul}** kazandınız!`);
+        await fetchedMsg.edit({ embeds: [EmbedBuilder.from(embed).setColor('#2ecc71').setDescription(`KAZANAN(LAR): ${kazananMetni}`)] });
+        await message.channel.send(`Tebrikler ${kazananMetni}! **${odul}** kazandiniz!`);
       } catch (e) {}
     }, sureMs);
   }
 
-  // .afk
+  // AFK KOMUTU
   if (command === 'afk') {
     const reason = args.join(' ') || 'Sebep belirtilmedi';
     afkMap.set(message.author.id, { reason, timestamp: Date.now() });
-    return message.reply(`💤 AFK moduna geçtin. Sebep: **${reason}**`);
+    return message.reply(`AFK moduna gectin. Sebep: **${reason}**`);
   }
 });
 
 client.login(process.env.TOKEN);
-
-      
