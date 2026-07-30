@@ -406,6 +406,6 @@ client.on('messageCreate', async (message) => {
     afkMap.set(message.author.id, { reason, timestamp: Date.now() });
     return message.reply(`💤 AFK moduna geçtin. Sebep: **${reason}**`);
   }
-});
+}); 
 
 client.login(process.env.TOKEN);
