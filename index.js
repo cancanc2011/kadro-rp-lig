@@ -116,7 +116,6 @@ client.on('messageCreate', async (message) => {
     const channel = message.mentions.channels.first();
     const notificationText = args.slice(1).join(' ');
 
-    // Eksik parametre uyarısı
     if (!channel || !notificationText) {
       return message.reply('⚠️ **Uyarı kanka!** Lütfen bir kanal etiketle ve göndereceğin mesajı yaz.\n**Doğru Kullanım:** `.kanalbildir #kanal <mesajınız>`');
     }
@@ -143,7 +142,6 @@ client.on('messageCreate', async (message) => {
     }
 
     const member = message.mentions.members.first();
-    // Eksik üye uyarısı
     if (!member) {
       return message.reply('⚠️ **Uyarı kanka!** Kimi uyaracağını etiketlemelisin.\n**Doğru Kullanım:** `.uyari @kullanici <sebep>`');
     }
@@ -195,7 +193,6 @@ client.on('messageCreate', async (message) => {
     const member = message.mentions.members.first();
     const warnId = parseInt(args[1]);
 
-    // Eksik üye veya ID uyarısı
     if (!member || isNaN(warnId)) {
       return message.reply('⚠️ **Uyarı kanka!** Lütfen bir kullanıcı etiketle ve silinecek uyarı ID\'sini gir.\n**Doğru Kullanım:** `.uyarisil @kullanici <uyari_id>`');
     }
@@ -214,7 +211,30 @@ client.on('messageCreate', async (message) => {
     return message.channel.send(`✅ **${member.user.tag}** kullanıcısının **#${warnId}** numaralı uyarısı silindi.`);
   }
 
-  // .uyarilist
+  // .uyarilar (Kullanıcının kendi uyarılarını veya etiketlenen kişinin uyarılarını görmesi için)
+  if (command === 'uyarilar' || command === 'uyarim') {
+    const targetMember = message.mentions.members.first() || message.member;
+    const userWarns = warnMap.get(targetMember.id);
+
+    if (!userWarns || userWarns.length === 0) {
+      return message.reply(`✅ ${targetMember.id === message.author.id ? 'Hiç uyarın yok!' : 'Bu kullanıcının hiç uyarısı yok.'}`);
+    }
+
+    const description = userWarns.map(w => {
+      return `🆔 **Uyarı ID:** #${w.id}\n💬 **Sebep:** ${w.reason}\n👮‍♂️ **Yetkili:** \`${w.moderator}\` (<t:${w.date}:R>)`;
+    }).join('\n\n');
+
+    const embed = new EmbedBuilder()
+      .setColor('#f1c40f')
+      .setTitle(`📜 ${targetMember.user.username} - Uyarı Listesi`)
+      .setDescription(description)
+      .setFooter({ text: `Toplam Uyarı: ${userWarns.length}` })
+      .setTimestamp();
+
+    return message.reply({ embeds: [embed] });
+  }
+
+  // .uyarilist / .uyarilistesi (Tüm sunucu uyarıları - Yetkili komutu)
   if (command === 'uyarilist' || command === 'uyarilistesi') {
     if (!hasAuth(message.member)) {
       return message.reply('❌ Uyarı kanka, bu komut için yetkin yok!');
